@@ -1,15 +1,15 @@
 package cm.antic.cell_geolocator.service;
 
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Service;
-
 import java.util.Arrays;
 import java.util.List;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
 
 @Service
 public class PriorityService {
 
-    @Value("${providers.priority:OpenCellID,Google,Mozilla}")
+    @Value("${providers.priority:OpenCellID,UnwiredLabs,Mozilla}")
     private String priorityString;
 
     private List<String> priorities;
