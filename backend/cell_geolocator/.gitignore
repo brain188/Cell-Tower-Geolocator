@@ -37,6 +37,7 @@ backend/target/
 backend/.idea/
 backend/*.iml
 backend/.mvn/
+backend/.env
 backend/mvnw
 backend/mvnw.cmd
 backend/.gitignore
@@ -51,3 +52,6 @@ frontend/build/
 frontend/.gitignore
 frontend/.env
 frontend/.env.*
+
+### Local Configuration ###
+.env

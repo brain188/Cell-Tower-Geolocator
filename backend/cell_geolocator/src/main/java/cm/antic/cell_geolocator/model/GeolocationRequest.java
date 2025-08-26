@@ -1,5 +1,11 @@
 package cm.antic.cell_geolocator.model;
 
-public class GeolocationRequest {
+import lombok.Data;
 
+@Data
+public class GeolocationRequest {
+    private String mcc;
+    private String mnc;
+    private String lac;
+    private String cellId;
 }
