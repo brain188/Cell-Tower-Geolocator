@@ -31,7 +31,7 @@ public class AuthService {
 
     @Autowired
     public void initKey() {
-        // Secret must be at least 64 chars for HS512 (512 bits)
+
         this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
     }
 

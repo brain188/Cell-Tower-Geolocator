@@ -9,7 +9,7 @@ import org.springframework.stereotype.Service;
 @Service
 public class PriorityService {
 
-    @Value("${providers.priority:OpenCellID,UnwiredLabs,Mozilla}")
+    @Value("${providers.priority:OpenCellID,UnwiredLabs,Combain}")
     private String priorityString;
 
     private List<String> priorities;

@@ -1,7 +1,7 @@
 package cm.antic.cell_geolocator.model;
 
 import lombok.Data;
-
+import java.util.HashMap;
 import java.util.Map;
 
 @Data
@@ -9,13 +9,19 @@ public class GeolocationResponse {
     private Double latitude;
     private Double longitude;
     private String providerUsed;
-    private Map<String, Object> rawResponses;
+    private String address;
+    private AddressDetail addressDetail;
 
-    public Map<String, Object> getRawResponses() {
-    return rawResponses;
-}
 
-    public void setRawResponses(Map<String, Object> rawResponses) {
-        this.rawResponses = rawResponses;
-}
+    private Map<String, Object> rawResponses = new HashMap<>();
+
+    @Data
+    public static class AddressDetail {
+        private String country;
+        private String countryCode;
+        private String stateOrRegion;
+        private String cityOrTown;
+        private String postalCode;
+        private String street;
+    }
 }

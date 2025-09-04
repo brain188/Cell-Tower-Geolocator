@@ -12,17 +12,17 @@ import org.springframework.web.client.RestTemplate;
 import java.util.Map;
 
 @Component
-public class OpenCellIdClient implements ProviderClient {
+public class CombainClient implements ProviderClient {
 
-    @Value("${opencellid.api.key}")
+    @Value("${combain.api.key}")
     private String apiKey;
 
-    @Value("${opencellid.api.url:https://opencellid.org/cell/get}")
+    @Value("${combain.api.url:https://api.combain.com/v2/location}")
     private String apiUrl;
 
     private final RestTemplate restTemplate = new RestTemplate();
 
-     @Autowired
+    @Autowired
     private ReverseGeocodeService reverseGeocodeService;
 
     @Override
@@ -40,7 +40,6 @@ public class OpenCellIdClient implements ProviderClient {
             response.setLatitude((Double) body.get("lat"));
             response.setLongitude((Double) body.get("lon"));
             response.setProviderUsed(getProviderName());
-
             
             // address details using reverse geocoding
             reverseGeocodeService.addAddressToResponse(response);
@@ -50,6 +49,7 @@ public class OpenCellIdClient implements ProviderClient {
 
     @Override
     public String getProviderName() {
-        return "OpenCellID";
+        return "Combain";
     }
+
 }

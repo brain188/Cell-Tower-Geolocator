@@ -2,6 +2,8 @@ package cm.antic.cell_geolocator.service.provider;
 
 import cm.antic.cell_geolocator.model.GeolocationRequest;
 import cm.antic.cell_geolocator.model.GeolocationResponse;
+import cm.antic.cell_geolocator.service.ReverseGeocodeService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -23,6 +25,9 @@ public class UnwiredLabsGeolocationClient implements ProviderClient {
     private String apiUrl;
 
     private final RestTemplate restTemplate = new RestTemplate();
+
+     @Autowired
+    private ReverseGeocodeService reverseGeocodeService;
 
     @Override
     @SuppressWarnings("unchecked")
@@ -47,6 +52,9 @@ public class UnwiredLabsGeolocationClient implements ProviderClient {
             Map<String, Object> result = (Map<String, Object>) responseMap.get("result");
             response.setLatitude((Double) result.get("lat"));
             response.setLongitude((Double) result.get("lon"));
+
+            // address details using reverse geocoding
+            reverseGeocodeService.addAddressToResponse(response);
         }
         return response;
     }

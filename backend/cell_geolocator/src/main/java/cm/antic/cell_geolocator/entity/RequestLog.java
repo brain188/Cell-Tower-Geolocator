@@ -21,6 +21,7 @@ public class RequestLog {
     private String providerUsed;
     private Double latitude;
     private Double longitude;
+    private String address;
     private LocalDateTime timestamp;
 
 }
