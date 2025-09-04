@@ -9,7 +9,7 @@ const About = () => {
         <p>
           CellGeolocator resolves a mobile cell (MCC, MNC, LAC/TAC, Cell ID) to geographic
           coordinates by querying location providers (e.g. OpenCellID, Unwired Labs,
-          BeaconDB) and showing the best result on the map.
+          Combain) and showing the best result on the map.
         </p>
       </div>
     </div>

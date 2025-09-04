@@ -21,8 +21,8 @@ const defaultIcon = new L.Icon({
   shadowSize: [41, 41],
 });
 
-const MapView = ({ latitude, longitude, accuracy, cellTowers }) => {
-  console.log('MapView props:', { latitude, longitude, accuracy, cellTowers });
+const MapView = ({ latitude, longitude, accuracy, cellTowers, cityMarker }) => {
+  console.log('MapView props:', { latitude, longitude, accuracy, cellTowers, cityMarker });
   const position = latitude && longitude ? [latitude, longitude] : [37.77, -122.42];
   const mapKey = latitude && longitude ? `${latitude}-${longitude}` : `default-${Date.now()}`;
   const zoom = 14;
@@ -39,6 +39,11 @@ const MapView = ({ latitude, longitude, accuracy, cellTowers }) => {
           <Popup>{tower.popupText}</Popup>
         </Marker>
       ))}
+      {cityMarker && (
+        <Marker key={cityMarker.id} position={cityMarker.position} icon={defaultIcon}>
+          <Popup>{cityMarker.popupText}</Popup>
+        </Marker>
+      )}
       {latitude && longitude && (
         <Marker position={[latitude, longitude]} icon={defaultIcon}>
           <Popup>

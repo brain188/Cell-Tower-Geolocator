@@ -4,6 +4,7 @@ import SearchForm from '../components/SearchForm.jsx';
 import MapView from '../components/MapView.jsx';
 import About from '../components/About.jsx';
 import Footer from '../components/Footer.jsx';
+import ResponseForm from '../components/ResponseForm.jsx';
 import './Home.css';
 
 const Home = () => {
@@ -12,6 +13,10 @@ const Home = () => {
   const [accuracy, setAccuracy] = useState(null);
   const [cellTowers, setCellTowers] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [cityMarker, setCityMarker] = useState(null);
+  const [providerUsed, setProviderUsed] = useState(null);
+  const [address, setAddress] = useState(null);
+  const [addressDetail, setAddressDetail] = useState(null);
 
   const handleSearch = async (request) => {
     if (loading) return;
@@ -20,7 +25,10 @@ const Home = () => {
     try {
       const response = await fetch('http://localhost:8081/api/v1/resolve', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'User-Agent': 'cell-geolocation-project/1.0 (tendongbrain@example.com)'
+        },
         body: JSON.stringify(request),
       });
       console.log('Response status:', response.status);
@@ -28,7 +36,7 @@ const Home = () => {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       const data = await response.json();
-      console.log('Full response data:', JSON.stringify(data, null, 2)); 
+      console.log('Full response data:', JSON.stringify(data, null, 2));
       const lat = data.latitude !== undefined ? data.latitude : null;
       const lon = data.longitude !== undefined ? data.longitude : null;
 
@@ -38,6 +46,9 @@ const Home = () => {
       setLatitude(lat);
       setLongitude(lon);
       setAccuracy(null);
+      setProviderUsed(data.providerUsed || null);
+      setAddress(data.address || null);
+      setAddressDetail(data.addressDetail || null);
       setCellTowers([{
         id: Date.now(),
         position: [lat, lon],
@@ -47,8 +58,49 @@ const Home = () => {
     } catch (error) {
       console.error('Error fetching geolocation:', error);
       alert(error.message || 'An unexpected error occurred. Please try again later.');
+      setLatitude(null);
+      setLongitude(null);
+      setProviderUsed(null);
+      setAddress(null);
+      setAddressDetail(null);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleCitySearch = async ({ lat, lon, name }) => {
+    try {
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(name)}&addressdetails=1`
+      );
+      const data = await response.json();
+      if (data && data.length > 0) {
+        const result = data[0];
+        let popupText;
+        if (result.type === 'country') {
+          popupText = `Country: ${result.address.country}`;
+        } else {
+          const cityOrTown = result.address.city || result.address.town || name;
+          const capital = (result.address.country_code === 'gb' && cityOrTown.toLowerCase() === 'london') ? 'London' :
+                         (result.address.country_code === 'fr' && cityOrTown.toLowerCase() === 'paris') ? 'Paris' : null;
+          popupText = `City: ${cityOrTown}\n${capital ? `Capital: ${capital}\n` : ''}Country: ${result.address.country}`;
+        }
+        setCityMarker({
+          id: Date.now(),
+          position: [parseFloat(lat), parseFloat(lon)],
+          popupText: popupText
+        });
+        setLatitude(parseFloat(lat));
+        setLongitude(parseFloat(lon));
+        setProviderUsed(null);
+        setAddress(null);
+        setAddressDetail(null);
+      } else {
+        alert('Location not found');
+      }
+    } catch (err) {
+      console.error('Error fetching location details:', err);
+      alert('Error fetching location details');
     }
   };
 
@@ -56,8 +108,21 @@ const Home = () => {
     <div className="home-page">
       <Header />
       <div className="main-content-home">
-        <MapView latitude={latitude} longitude={longitude} accuracy={accuracy} cellTowers={cellTowers} />
-        <SearchForm onSearch={handleSearch} />
+        <MapView 
+          latitude={latitude} 
+          longitude={longitude} 
+          accuracy={accuracy} 
+          cellTowers={cellTowers} 
+          cityMarker={cityMarker}
+        />
+        <SearchForm onSearch={handleSearch} onCitySearch={handleCitySearch} />
+        <ResponseForm 
+          latitude={latitude} 
+          longitude={longitude} 
+          providerUsed={providerUsed} 
+          address={address} 
+          addressDetail={addressDetail} 
+        />
       </div>
       <About />
       <Footer />

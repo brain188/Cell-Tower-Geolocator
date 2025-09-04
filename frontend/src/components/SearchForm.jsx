@@ -1,15 +1,39 @@
 import React, { useState } from 'react';
 import './SearchForm.css';
 
-const SearchForm = ({ onSearch }) => {
+const SearchForm = ({ onSearch, onCitySearch }) => {
   const [mcc, setMcc] = useState('');
   const [mnc, setMnc] = useState('');
   const [lac, setLac] = useState('');
   const [cellId, setCellId] = useState('');
+  const [city, setCity] = useState('');
 
   const handleSubmit = (e) => {
     e.preventDefault();
     onSearch({ mcc, mnc, lac, cellId });
+  };
+
+  const handleCityKeyPress = async (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (!city.trim()) return;
+
+      try {
+        const response = await fetch(
+          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(city)}`
+        );
+        const data = await response.json();
+        if (data && data.length > 0) {
+          const { lat, lon } = data[0];
+          onCitySearch({ lat: parseFloat(lat), lon: parseFloat(lon), name: city });
+        } else {
+          alert('City not found');
+        }
+      } catch (err) {
+        console.error('Error fetching city location:', err);
+        alert('Error fetching city location');
+      }
+    }
   };
 
   return (
@@ -17,8 +41,11 @@ const SearchForm = ({ onSearch }) => {
       <div className="search-header">
         <input
           type="text"
-          placeholder="Q Find a city (e.g. London)"
+          placeholder=" Find a city (e.g. London)"
           className="city-search-input"
+          value={city}
+          onChange={(e) => setCity(e.target.value)}
+          onKeyPress={handleCityKeyPress}
         />
       </div>
       <div className="search-form-panel">
