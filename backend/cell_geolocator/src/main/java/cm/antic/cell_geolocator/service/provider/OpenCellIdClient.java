@@ -10,6 +10,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.Map;
+import org.springframework.web.client.RestClientException;
 
 @Component
 public class OpenCellIdClient implements ProviderClient {
@@ -22,29 +23,38 @@ public class OpenCellIdClient implements ProviderClient {
 
     private final RestTemplate restTemplate = new RestTemplate();
 
-     @Autowired
+    @Autowired
     private ReverseGeocodeService reverseGeocodeService;
 
     @Override
     public GeolocationResponse resolve(GeolocationRequest request) {
-        String url = String.format("%s?key=%s&mcc=%s&mnc=%s&lac=%s&cellid=%s&format=json", apiUrl, apiKey, request.getMcc(), request.getMnc(), request.getLac(), request.getCellId());
-        ResponseEntity<Map<String, Object>> responseEntity = restTemplate.exchange(
-            url,
-            org.springframework.http.HttpMethod.GET,
-            null,
-            new org.springframework.core.ParameterizedTypeReference<Map<String, Object>>() {}
-        );
-        Map<String, Object> body = responseEntity.getBody();
         GeolocationResponse response = new GeolocationResponse();
-        if (body != null && body.containsKey("lat") && body.containsKey("lon")) {
-            response.setLatitude((Double) body.get("lat"));
-            response.setLongitude((Double) body.get("lon"));
-            response.setProviderUsed(getProviderName());
+        response.setProviderUsed(getProviderName());
 
-            
-            // address details using reverse geocoding
-            reverseGeocodeService.addAddressToResponse(response);
+        try {
+            String url = String.format("%s?key=%s&mcc=%s&mnc=%s&lac=%s&cellid=%s&format=json",
+                    apiUrl, apiKey, request.getMcc(), request.getMnc(), request.getLac(), request.getCellId());
+
+            ResponseEntity<Map<String, Object>> responseEntity = restTemplate.exchange(
+                    url,
+                    org.springframework.http.HttpMethod.GET,
+                    null,
+                    new org.springframework.core.ParameterizedTypeReference<>() {}
+            );
+
+            Map<String, Object> body = responseEntity.getBody();
+
+            if (body != null && body.containsKey("lat") && body.containsKey("lon")) {
+                response.setLatitude(((Number) body.get("lat")).doubleValue());
+                response.setLongitude(((Number) body.get("lon")).doubleValue());
+                reverseGeocodeService.addAddressToResponse(response);
+            } else {
+                response.setError("No coordinates returned");
+            }
+        } catch (RestClientException e) {
+            response.setError("Error calling OpenCellID: " + e.getMessage());
         }
+
         return response;
     }
 

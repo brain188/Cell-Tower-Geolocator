@@ -23,13 +23,17 @@ public class GeolocationService {
     private PriorityService priorityService;
 
     @Autowired
-    private List<ProviderClient> providerClients;
+    private final List<ProviderClient> providerClients;
 
     @Autowired
     private RequestLogRepository requestLogRepository;
 
     @Autowired
     private ReverseGeocodeService reverseGeocodeService;
+
+    public GeolocationService(List<ProviderClient> providerClients) {
+        this.providerClients = providerClients;
+    }
 
     @Cacheable(value = "geolocation", key = "#request.mcc + '_' + #request.mnc + '_' + #request.lac + '_' + #request.cellId")
     @Retry(name = "providerRetry")

@@ -22,8 +22,13 @@ public class SecurityConfig {
         http
             .csrf(csrf -> csrf.disable())
             .authorizeHttpRequests(auth -> auth
+                .requestMatchers("/swagger-ui/**",
+                                           "/v3/api-docs/**").permitAll()
                 .requestMatchers("/api/auth/**").permitAll()
-                .requestMatchers("/api/v1/resolve").permitAll()
+                .requestMatchers("/api/v1/geolocate").permitAll()
+                .requestMatchers("/api/v1/geolocate/all").permitAll()
+                .requestMatchers("/api/v1/geolocate/priority").permitAll()
+                .requestMatchers("/api/v1/geolocate/priority/chosen").permitAll()
                 .anyRequest().authenticated()
             )
             .addFilterBefore(new JwtAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class);
