@@ -1,6 +1,7 @@
 package cm.antic.cell_geolocator.service;
 
 import java.time.LocalDateTime;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -16,13 +17,15 @@ import cm.antic.cell_geolocator.service.provider.ProviderClient;
 
 /**
  * Service that aggregates results from multiple geolocation providers
- * (OpenCellID, UnwiredLabs, Combain). It calculates distances between
- * providers' results and chooses the most reliable one based on
- * shortest distance + configured priority order.
+ * (MyDatabase(cellGeolocator),OpenCellID, UnwiredLabs, Combain) 
+ * The logic is:
+ *   Try localDB(cellGeolocator) first
+ *   If not found → use external providers + distance comparison
  */
 @Service
 public class GeolocationAggregatorService {
 
+    private final CellTowerLocalService cellTowerLocalService;
     private final List<ProviderClient> providers;
     private final PriorityService priorityService;
     private final RequestLogRepository requestLogRepository;
@@ -30,43 +33,38 @@ public class GeolocationAggregatorService {
     public GeolocationAggregatorService(
             List<ProviderClient> providers,
             PriorityService priorityService,
-            RequestLogRepository requestLogRepository) {
+            RequestLogRepository requestLogRepository,
+            CellTowerLocalService cellTowerLocalService) {
         this.providers = providers;
         this.priorityService = priorityService;
         this.requestLogRepository = requestLogRepository;
+        this.cellTowerLocalService = cellTowerLocalService;
     }
 
-    // Calls every provider with the same request and collects their responses
-    public Map<String, GeolocationResponse> resolveWithAllProviders(GeolocationRequest request) {
-        Map<String, GeolocationResponse> results = new HashMap<>();
-
-        for (ProviderClient provider : providers) {
-            try {
-                GeolocationResponse resp = provider.resolve(request);
-                results.put(provider.getProviderName(), resp);
-
-                // Save each provider result in DB
-                saveLog(request, resp);
-            } catch (Exception e) {
-                // Capture errors gracefully
-                GeolocationResponse errorResponse = new GeolocationResponse();
-                errorResponse.setProviderUsed(provider.getProviderName());
-                errorResponse.setAddress("Error: " + e.getMessage());
-                results.put(provider.getProviderName(), errorResponse);
-
-                saveLog(request, errorResponse);
-            }
-        }
-
-        return results;
-    }
-
-    /** 
-     * Gets results from all providers, calculates pairwise distances,
-     * and selects the best one based on shortest distance and priority.
-     * Adds fallback logic if chosen provider has no valid result.
+    /**
+     * Resolves a geolocation request using local DB first, then external providers if needed.
      */
     public PriorityGeolocationResult resolveWithPriority(GeolocationRequest request) {
+        // 1. Check Local Supabase DB first
+        GeolocationResponse localResp = cellTowerLocalService.findLocalTower(
+                request.getMcc(), request.getMnc(), request.getLac(), request.getCellId());
+
+        if (localResp != null && localResp.getLatitude() != null) {
+            PriorityGeolocationResult result = new PriorityGeolocationResult();
+            result.setChosen(localResp);
+            result.setAllResponses(Map.of("LOCAL_DB", localResp));
+            result.setDistances(Collections.emptyMap());
+            result.setShortestPair("LOCAL_DB_ONLY");
+
+            saveLog(request, localResp);
+            return result;
+        }
+
+        /** 
+        2. Otherwise, query external providers
+        * and selects the best one based on shortest distance and priority.
+        * Adds fallback logic if chosen provider has no valid result.
+        */
         Map<String, GeolocationResponse> results = resolveWithAllProviders(request);
 
         GeolocationResponse a = results.get("OpenCellID");
@@ -78,8 +76,8 @@ public class GeolocationAggregatorService {
         double bc = distanceIfValid(b, c);
 
         double min = Math.min(ab, Math.min(ac, bc));
-        GeolocationResponse chosen = null;
-        String shortestPair = null;
+        GeolocationResponse chosen;
+        String shortestPair;
 
         if (min == ab) {
             chosen = pickByPriorityWithFallback(a, b, c);
@@ -87,12 +85,12 @@ public class GeolocationAggregatorService {
         } else if (min == ac) {
             chosen = pickByPriorityWithFallback(a, c, b);
             shortestPair = "AC";
-        } else if (min == bc) {
+        } else {
             chosen = pickByPriorityWithFallback(b, c, a);
             shortestPair = "BC";
         }
 
-        // If no provider returned a valid result at all
+        // If no provider returned valid coordinates
         if (chosen == null || chosen.getLatitude() == null || chosen.getLongitude() == null) {
             GeolocationResponse noResult = new GeolocationResponse();
             noResult.setProviderUsed("None");
@@ -111,17 +109,36 @@ public class GeolocationAggregatorService {
         result.setDistances(distances);
         result.setShortestPair(shortestPair);
 
-        // Save chosen result
         saveLog(request, chosen);
-
         return result;
     }
 
     /**
-     * Enhanced priority picker with fallback:
-     * - Chooses by configured priority
-     * - If chosen has no coordinates → fallback to other in pair
-     * - If both invalid → fallback to third provider if valid
+     * Queries all configured providers and returns a map of results.
+     */
+    public Map<String, GeolocationResponse> resolveWithAllProviders(GeolocationRequest request) {
+        Map<String, GeolocationResponse> results = new HashMap<>();
+
+        for (ProviderClient provider : providers) {
+            try {
+                GeolocationResponse resp = provider.resolve(request);
+                results.put(provider.getProviderName(), resp);
+                saveLog(request, resp);
+            } catch (Exception e) {
+                GeolocationResponse errorResponse = new GeolocationResponse();
+                errorResponse.setProviderUsed(provider.getProviderName());
+                errorResponse.setAddress("Error: " + e.getMessage());
+                results.put(provider.getProviderName(), errorResponse);
+                saveLog(request, errorResponse);
+            }
+        }
+        return results;
+    }
+
+    /**
+     * Selects the best provider result based on configured priority and fallbacks.
+     * and selects the best one based on shortest distance and priority.
+     * Adds fallback logic if chosen provider has no valid result.
      */
     private GeolocationResponse pickByPriorityWithFallback(
             GeolocationResponse r1,
@@ -130,41 +147,26 @@ public class GeolocationAggregatorService {
 
         GeolocationResponse preferred = pickByPriority(r1, r2);
 
-        // Check if preferred provider has valid coordinates
-        if (isValid(preferred)) {
-            return preferred;
-        }
+        if (isValid(preferred)) return preferred;
 
-        // Otherwise, try the other provider in the pair
         GeolocationResponse alternative = (preferred == r1) ? r2 : r1;
-        if (isValid(alternative)) {
-            return alternative;
-        }
+        if (isValid(alternative)) return alternative;
 
-        // Finally, fallback to the third provider if valid
-        if (isValid(fallback)) {
-            return fallback;
-        }
+        if (isValid(fallback)) return fallback;
 
-        // No valid result in any provider
         return null;
     }
 
-    // Checks if a response has valid lat/lon
     private boolean isValid(GeolocationResponse resp) {
         return resp != null && resp.getLatitude() != null && resp.getLongitude() != null;
     }
 
-    // checks validity before distance calculation
     private double distanceIfValid(GeolocationResponse r1, GeolocationResponse r2) {
-        if (!isValid(r1) || !isValid(r2)) {
-            return Double.MAX_VALUE;
-        }
-        return haversine(r1.getLatitude(), r1.getLongitude(),
-                         r2.getLatitude(), r2.getLongitude());
+        if (!isValid(r1) || !isValid(r2)) return Double.MAX_VALUE;
+        return haversine(r1.getLatitude(), r1.getLongitude(), r2.getLatitude(), r2.getLongitude());
     }
 
-    /**
+     /**
      * implements the haversine formula to calculate distance(in kilometers)
      * between two on earth given thier lat/lon 
      */
@@ -173,8 +175,8 @@ public class GeolocationAggregatorService {
         double dLat = Math.toRadians(lat2 - lat1);
         double dLon = Math.toRadians(lon2 - lon1);
         double a = Math.sin(dLat / 2) * Math.sin(dLat / 2)
-                 + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
-                 * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+                + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
+                * Math.sin(dLon / 2) * Math.sin(dLon / 2);
         double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
         return R * c;
     }
