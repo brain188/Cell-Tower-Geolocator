@@ -1,23 +1,19 @@
 package cm.antic.cell_geolocator.service.provider;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
-
-import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
-import org.springframework.stereotype.Component;
-import org.springframework.web.client.RestClientException;
-import org.springframework.web.client.RestTemplate;
-
 import cm.antic.cell_geolocator.model.GeolocationRequest;
 import cm.antic.cell_geolocator.model.GeolocationResponse;
 import cm.antic.cell_geolocator.service.ReverseGeocodeService;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
+import org.springframework.web.reactive.function.client.WebClient;
+import reactor.core.publisher.Mono;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 
 @Component
 public class UnwiredLabsGeolocationClient implements ProviderClient {
@@ -28,58 +24,102 @@ public class UnwiredLabsGeolocationClient implements ProviderClient {
     @Value("${unwired_labs.api.url:https://us1.unwiredlabs.com/v2/process}")
     private String apiUrl;
 
-    private final RestTemplate restTemplate = new RestTemplate();
+    @Autowired
+    private WebClient webClient;
 
     @Autowired
     private ReverseGeocodeService reverseGeocodeService;
 
     @Override
     public GeolocationResponse resolve(GeolocationRequest request) {
-        GeolocationResponse response = new GeolocationResponse();
-        response.setProviderUsed(getProviderName());
-
         try {
-            Map<String, Object> body = new HashMap<>();
-            body.put("token", apiKey);
-
-            Map<String, Object> tower = new HashMap<>();
-            tower.put("mcc", request.getMcc());
-            tower.put("mnc", request.getMnc());
-            tower.put("lac", request.getLac());
-            tower.put("cid", request.getCellId()); 
-
-            body.put("cells", List.of(tower));
-        
-            HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, new HttpHeaders() {{
-                setContentType(MediaType.APPLICATION_JSON);
-            }});
-
-            ResponseEntity<Map<String, Object>> responseEntity = restTemplate.exchange(
-                    apiUrl,
-                    org.springframework.http.HttpMethod.POST,
-                    entity,
-                    new org.springframework.core.ParameterizedTypeReference<>() {}
-            );
-
-            Map<String, Object> result = responseEntity.getBody();
-
-            if (result != null && result.containsKey("lat") && result.containsKey("lon")) {
-                response.setLatitude(((Number) result.get("lat")).doubleValue());
-                response.setLongitude(((Number) result.get("lon")).doubleValue());
-                reverseGeocodeService.addAddressToResponse(response);
-            } else {
-                response.setError("No coordinates returned");
-            }
-        } catch (RestClientException e) {
-            response.setError("Error calling UnwiredLabs: " + e.getMessage());
+            return resolveAsync(request).join();
+        } catch (Exception e) {
+            GeolocationResponse err = new GeolocationResponse();
+            err.setProviderUsed(getProviderName());
+            err.setError("UnwiredLabs resolve failed: " + e.getMessage());
+            return err;
         }
+    }
 
-        return response;
+    @Override
+    public CompletableFuture<GeolocationResponse> resolveAsync(GeolocationRequest request) {
+        GeolocationResponse base = new GeolocationResponse();
+        base.setProviderUsed(getProviderName());
+
+        Map<String, Object> tower = new HashMap<>();
+        tower.put("mcc", tryParseNumber(request.getMcc()));
+        tower.put("mnc", tryParseNumber(request.getMnc()));
+        tower.put("lac", tryParseNumber(request.getLac()));
+        tower.put("cid", tryParseNumber(request.getCellId())); // Unwired uses cid or cellid depending on doc
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("token", apiKey);
+        body.put("cells", List.of(tower));
+        body.put("address", 1); // request address in response if supported
+
+        return webClient.post()
+                .uri(apiUrl)
+                .bodyValue(body)
+                .retrieve()
+                .bodyToMono(Map.class)
+                .flatMap(result -> {
+                    // Unwired typically returns top-level "lat" and "lon" for the whole request
+                    Object latObj = result.get("lat");
+                    Object lonObj = result.get("lon");
+
+                    if (latObj instanceof Number && lonObj instanceof Number) {
+                        GeolocationResponse resp = new GeolocationResponse();
+                        resp.setProviderUsed(getProviderName());
+                        resp.setLatitude(((Number) latObj).doubleValue());
+                        resp.setLongitude(((Number) lonObj).doubleValue());
+                        return Mono.fromFuture(reverseGeocodeService.addAddressToResponseAsync(resp))
+                                   .then(Mono.just(resp));
+                    }
+
+                    // Try nested "result" object
+                    Object resultObj = result.get("result");
+                    if (resultObj instanceof Map<?, ?> resMap) {
+                        Object rlat = resMap.get("lat");
+                        Object rlon = resMap.get("lon");
+                        if (rlat instanceof Number && rlon instanceof Number) {
+                            GeolocationResponse resp = new GeolocationResponse();
+                            resp.setProviderUsed(getProviderName());
+                            resp.setLatitude(((Number) rlat).doubleValue());
+                            resp.setLongitude(((Number) rlon).doubleValue());
+                            return Mono.fromFuture(reverseGeocodeService.addAddressToResponseAsync(resp))
+                                       .then(Mono.just(resp));
+                        }
+                    }
+
+                    GeolocationResponse err = base;
+                    err.setError("No coordinates returned from UnwiredLabs");
+                    return Mono.just(err);
+                })
+                .onErrorResume(ex -> {
+                    GeolocationResponse err = base;
+                    err.setError("UnwiredLabs error: " + ex.getMessage());
+                    return Mono.just(err);
+                })
+                .toFuture();
+    }
+
+    private Number tryParseNumber(String s) {
+        if (s == null) return null;
+        try {
+            return Long.parseLong(s);
+        } catch (NumberFormatException e) {
+            try {
+                return Double.parseDouble(s);
+            } catch (NumberFormatException ex) {
+                return null; // unable to parse as a number
+            }
+        }
     }
 
     @Override
     public String getProviderName() {
         return "UnwiredLabs";
     }
-    
+
 }

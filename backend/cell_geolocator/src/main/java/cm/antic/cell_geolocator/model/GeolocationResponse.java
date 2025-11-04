@@ -21,9 +21,11 @@ public class GeolocationResponse {
 
     @Schema(description = "Address of the resolved location", example = "1 Infinite Loop, Cupertino, CA 95014, USA")
     private String address;
-    
+
     private AddressDetail addressDetail;
 
+    @Schema(description = "Error message if resolution failed", example = "Provider error")
+    private String error;
 
     private Map<String, Object> rawResponses = new HashMap<>();
 
@@ -37,7 +39,7 @@ public class GeolocationResponse {
         private String street;
     }
 
-    public void setError(String string) {
-        throw new UnsupportedOperationException("Unimplemented method 'setError'");
+    public void setError(String error) {
+        this.error = error;
     }
 }

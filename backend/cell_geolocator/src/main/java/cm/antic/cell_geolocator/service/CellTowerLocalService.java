@@ -1,14 +1,12 @@
 package cm.antic.cell_geolocator.service;
 
 import cm.antic.cell_geolocator.model.GeolocationResponse;
-
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.dao.DataAccessException;
 
 import java.util.List;
 import java.util.Map;
-
-import org.springframework.dao.DataAccessException;
 
 @Service
 public class CellTowerLocalService {
@@ -37,34 +35,33 @@ public class CellTowerLocalService {
             List<Map<String, Object>> results = jdbcTemplate.queryForList(sql, lac, cellId);
 
             if (!results.isEmpty()) {
-    Map<String, Object> row = results.get(0);
-    GeolocationResponse resp = new GeolocationResponse();
+                Map<String, Object> row = results.get(0);
+                GeolocationResponse resp = new GeolocationResponse();
 
-    // Convert String or Number safely to Double
-    Object latObj = row.get("latitude");
-    Object lonObj = row.get("longitude");
+                Object latObj = row.get("latitude");
+                Object lonObj = row.get("longitude");
 
-    if (latObj != null && lonObj != null) {
-        resp.setLatitude(Double.valueOf(latObj.toString()));
-        resp.setLongitude(Double.valueOf(lonObj.toString()));
-    } else {
-        throw new RuntimeException("Latitude or Longitude is null in database result");
-    }
+                if (latObj != null && lonObj != null) {
+                    resp.setLatitude(Double.valueOf(latObj.toString()));
+                    resp.setLongitude(Double.valueOf(lonObj.toString()));
+                } else {
+                    throw new RuntimeException("Latitude or Longitude is null in DB result");
+                }
 
-    resp.setProviderUsed("LOCAL_DB(orange_cameroon): " + row.get("operator_name"));
-    resp.setAddress("Resolved from Orange-Cameroon dataset");
+                resp.setProviderUsed("LOCAL_DB(orange_cameroon): " + row.get("operator_name"));
+                resp.setAddress("Resolved from local Orange-Cameroon DB");
 
-    reverseGeocodeService.addAddressToResponse(resp);
-    return resp;
-}
+                // Wait so DB result returns with address properly
+                reverseGeocodeService.addAddressToResponseAsync(resp).join();
+
+                System.out.println("LOCAL DB HIT");
+                return resp;
+            }
+
         } catch (DataAccessException e) {
             System.err.println("Local DB lookup failed: " + e.getMessage());
         }
+
         return null;
     }
-
 }
-
-
-// resp.setLatitude(Double.parseDouble(latObj.toString()));
-// resp.setLongitude(Double.parseDouble(lonObj.toString()));
