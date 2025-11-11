@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import './ResponseForm.css';
 
-const ResponseForm = ({ latitude, longitude, providerUsed, address, addressDetail }) => {
+const ResponseForm = ({ latitude, longitude, accuracy, providerUsed, address, addressDetail }) => {
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
 
   return (
@@ -15,6 +15,10 @@ const ResponseForm = ({ latitude, longitude, providerUsed, address, addressDetai
         <div className="response-item">
           <span className="label">Longitude:</span>
           <span className="value">{longitude !== null ? longitude.toFixed(4) : 'N/A'}</span>
+        </div>
+        <div className="response-item">
+          <span className="label">Accuracy (meters):</span>
+          <span className="value">{accuracy ? `${accuracy.toFixed(0)} m` : 'N/A'}</span>
         </div>
         <div className="response-item">
           <span className="label">Provider Used:</span>

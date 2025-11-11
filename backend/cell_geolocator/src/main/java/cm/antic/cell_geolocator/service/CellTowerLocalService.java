@@ -4,6 +4,7 @@ import cm.antic.cell_geolocator.model.GeolocationResponse;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.dao.DataAccessException;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import java.util.List;
 import java.util.Map;
@@ -12,6 +13,8 @@ import java.util.Map;
 public class CellTowerLocalService {
 
     private final JdbcTemplate jdbcTemplate;
+
+    @Autowired
     private final ReverseGeocodeService reverseGeocodeService;
 
     public CellTowerLocalService(JdbcTemplate jdbcTemplate,
@@ -20,12 +23,26 @@ public class CellTowerLocalService {
         this.reverseGeocodeService = reverseGeocodeService;
     }
 
+    public List<Map<String, Object>> findCellsByBtsId(String cellId) {
+    String sql = """
+        SELECT c2.lac, c2.ci, c2."Id BTS New", c2.latitude, c2.longitude
+        FROM orange_cameroon c1
+        JOIN orange_cameroon c2 ON c1."Id BTS New" = c2."Id BTS New"
+        WHERE c1.ci = ?
+            AND c2.ci <> ?
+        ORDER BY c2.ci
+    """;
+    return jdbcTemplate.queryForList(sql, cellId, cellId);
+    }
+
+
     public GeolocationResponse findLocalTower(String mcc, String mnc, String lac, String cellId) {
         try {
             String sql = """
                     SELECT latitude,
                            longitude,
-                           nomdusite AS operator_name
+                           nomdusite AS operator_name,
+                           "Id BTS New"
                     FROM orange_cameroon
                     WHERE CAST(lac AS TEXT) = ?
                       AND CAST(ci AS TEXT) = ?
@@ -49,7 +66,6 @@ public class CellTowerLocalService {
                 }
 
                 resp.setProviderUsed("LOCAL_DB(orange_cameroon): " + row.get("operator_name"));
-                resp.setAddress("Resolved from local Orange-Cameroon DB");
 
                 // Wait so DB result returns with address properly
                 reverseGeocodeService.addAddressToResponseAsync(resp).join();

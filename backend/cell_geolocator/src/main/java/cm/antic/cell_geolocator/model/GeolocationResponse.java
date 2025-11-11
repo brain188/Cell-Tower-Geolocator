@@ -16,6 +16,9 @@ public class GeolocationResponse {
     @Schema(description = "Longitude of the resolved location", example = "-122.4194")
     private Double longitude;
 
+    @Schema(description = "Accuracy of the resolved location in meters", example = "100")
+    private Double accuracy;
+    
     @Schema(description = "The provider used for resolution", example = "ProviderA")
     private String providerUsed;
 

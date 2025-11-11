@@ -77,6 +77,7 @@ public class GeolocationService {
 
                         finalResponse.setLatitude(r.response.getLatitude());
                         finalResponse.setLongitude(r.response.getLongitude());
+                        finalResponse.setAccuracy(r.response.getAccuracy());
                         finalResponse.setProviderUsed(r.provider);
                     }
                 });
@@ -127,6 +128,7 @@ public class GeolocationService {
             log.setMnc(request.getMnc());
             log.setLac(request.getLac());
             log.setCellId(request.getCellId());
+            log.setAccuracy(resp.getAccuracy());
             log.setProviderUsed(resp.getProviderUsed());
             log.setLatitude(resp.getLatitude());
             log.setLongitude(resp.getLongitude());

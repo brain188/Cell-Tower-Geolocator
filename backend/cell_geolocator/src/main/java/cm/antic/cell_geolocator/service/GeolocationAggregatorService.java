@@ -190,6 +190,7 @@ public class GeolocationAggregatorService {
             log.setMnc(req.getMnc());
             log.setLac(req.getLac());
             log.setCellId(req.getCellId());
+            log.setAccuracy(resp.getAccuracy());
             log.setProviderUsed(resp.getProviderUsed());
             log.setLatitude(resp.getLatitude());
             log.setLongitude(resp.getLongitude());

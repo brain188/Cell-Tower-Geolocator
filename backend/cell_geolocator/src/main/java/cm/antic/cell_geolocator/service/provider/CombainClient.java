@@ -55,7 +55,6 @@ public class CombainClient implements ProviderClient {
         cellTower.put("cellId", tryParseNumber(request.getCellId()));
 
         Map<String, Object> requestBody = new HashMap<>();
-        // requestBody.put("radioType", "gsm");
         requestBody.put("cellTowers", List.of(cellTower));
 
         // POST to Combain with API key as query param (per their docs)
@@ -78,6 +77,11 @@ public class CombainClient implements ProviderClient {
                             resp.setProviderUsed(getProviderName());
                             resp.setLatitude(lat.doubleValue());
                             resp.setLongitude(lng.doubleValue());
+
+                            Object accObj = locMap.get("accuracy");
+                            if (accObj instanceof Number) {
+                                resp.setAccuracy(((Number) accObj).doubleValue());
+                            }
                             // Do reverse geocoding asynchronously and then complete with resp
                             return Mono.fromFuture(reverseGeocodeService.addAddressToResponseAsync(resp))
                                        .then(Mono.just(resp));
@@ -91,6 +95,11 @@ public class CombainClient implements ProviderClient {
                         resp.setProviderUsed(getProviderName());
                         resp.setLatitude(((Number) latObj).doubleValue());
                         resp.setLongitude(((Number) lonObj).doubleValue());
+
+                        Object accObj = body.get("accuracy");
+                        if (accObj instanceof Number) {
+                            resp.setAccuracy(((Number) accObj).doubleValue());
+                        }
                         return Mono.fromFuture(reverseGeocodeService.addAddressToResponseAsync(resp))
                                    .then(Mono.just(resp));
                     }

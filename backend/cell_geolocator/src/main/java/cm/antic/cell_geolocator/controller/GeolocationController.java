@@ -1,5 +1,7 @@
 package cm.antic.cell_geolocator.controller;
 
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -9,9 +11,9 @@ import org.springframework.web.bind.annotation.*;
 
 import cm.antic.cell_geolocator.model.GeolocationRequest;
 import cm.antic.cell_geolocator.model.GeolocationResponse;
-import cm.antic.cell_geolocator.model.PriorityGeolocationResult;
 import cm.antic.cell_geolocator.service.GeolocationService;
 import cm.antic.cell_geolocator.service.GeolocationAggregatorService;
+import cm.antic.cell_geolocator.service.CellTowerLocalService;
 import io.github.bucket4j.Bucket;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -33,11 +35,13 @@ public class GeolocationController {
     private GeolocationAggregatorService aggregatorService;
 
     @Autowired
+    private CellTowerLocalService cellTowerLocalService;
+
+    @Autowired
     private Bucket rateLimiterBucket;
 
-    
-    // PRIORITY-FIRST FASTEST RESULT FROM PROVIDERS
 
+    // PRIORITY-FIRST FASTEST RESULT FROM PROVIDERS
     @Operation(
         summary = "Resolve geolocation (async priority-first)",
         description = "Returns first successful provider async based on priority."
@@ -59,60 +63,76 @@ public class GeolocationController {
         return ResponseEntity.ok(future);
     }
 
-    // ------------------------------------------------------
-    // QUERY **ALL** PROVIDERS IN PARALLEL - RETURN ALL
-    // ------------------------------------------------------
-    // @Operation(
-    //     summary = "Resolve from all providers (async)",
-    //     description = "Calls all providers concurrently & returns individual results."
-    // )
-    // @PostMapping("/geolocate/all")
-    // public ResponseEntity<CompletableFuture<Map<String, GeolocationResponse>>> resolveWithAll(
-    //         @RequestBody GeolocationRequest request) {
 
-    //     if (!rateLimiterBucket.tryConsumeAndReturnRemaining(1).isConsumed()) {
-    //         return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).build();
-    //     }
-
-    //     CompletableFuture<Map<String, GeolocationResponse>> future =
-    //             aggregatorService.resolveWithAllAsync(request);
-
-    //     return ResponseEntity.ok(future);
-    // }
-
-
-    // PRIORITY + DISTANCE ALGORITHM (ASYNC)
-
+    /**
+     * Returns all prioritized geolocation results (from all sources)
+     * plus related cells if the local DB result is used.
+     */
     @Operation(
-        summary = "Resolve with priority + distance optimization ",
-        description = "Compares provider distances & priority rankings."
+        summary = "Resolve with priority + distance optimization",
+        description = "Compares provider distances & priority rankings, and returns chosen + related cells."
     )
     @PostMapping("/geolocate/priority")
-    public ResponseEntity<CompletableFuture<PriorityGeolocationResult>> resolveWithPriority(
-            @RequestBody GeolocationRequest request) {
-
-        if (!rateLimiterBucket.tryConsumeAndReturnRemaining(1).isConsumed()) {
-            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).build();
-        }
-
-        CompletableFuture<PriorityGeolocationResult> future =
-                aggregatorService.resolveWithPriorityAsync(request);
-
-        return ResponseEntity.ok(future);
-    }
-
-
-    // SIMPLE ENDPOINT — ONLY CHOSEN BEST RESULT
-
-    @Operation(
-        summary = "Get only the chosen best provider",
-        description = "Only returns final selected result"
-    )
-    @PostMapping("geolocate/priority/chosen")
-    public CompletableFuture<GeolocationResponse> getPriorityChosen(
-            @RequestBody GeolocationRequest request) {
-
+    public CompletableFuture<Map<String, Object>> getPriority(@RequestBody GeolocationRequest request) {
         return aggregatorService.resolveWithPriorityAsync(request)
-                .thenApply(PriorityGeolocationResult::getChosen);
+            .thenApply(priorityResult -> {
+                List<Map<String, Object>> relatedCells = List.of();
+
+                // Check if the top priority (chosen) result came from the local DB
+                if (priorityResult.getChosen() != null &&
+                    priorityResult.getChosen().getProviderUsed() != null &&
+                    priorityResult.getChosen().getProviderUsed().contains("LOCAL_DB(orange_cameroon)")) {
+
+                    try {
+                        relatedCells = cellTowerLocalService.findCellsByBtsId(
+                                String.valueOf(request.getCellId()));
+                    } catch (Exception e) {
+                        System.err.println("⚠️ Failed to fetch related cells: " + e.getMessage());
+                    }
+                }
+
+                // Return all priority results and related local cells (if applicable)
+                return Map.of(
+                    "priorityResults", priorityResult,
+                    "relatedCells", relatedCells
+                );
+            });
     }
+
+
+    /**
+     * Returns only the chosen (best) geolocation result,
+     * plus other nearby cells if the result is from the local DB.
+     */
+    @Operation(
+        summary = "Get only the chosen best provider (with related cells)",
+        description = "Returns the selected result and related cells based on same BTS."
+    )
+    @PostMapping("/geolocate/priority/chosen")
+    public CompletableFuture<Map<String, Object>> getPriorityChosen(@RequestBody GeolocationRequest request) {
+        return aggregatorService.resolveWithPriorityAsync(request)
+            .thenApply(priorityResult -> {
+                GeolocationResponse chosen = priorityResult.getChosen();
+
+                List<Map<String, Object>> relatedCells = List.of(); // Empty by default
+
+                // Only get related cells if local DB provided the chosen result
+                if (chosen != null && chosen.getProviderUsed() != null &&
+                        chosen.getProviderUsed().contains("LOCAL_DB(orange_cameroon)")) {
+                    try {
+                        relatedCells = cellTowerLocalService.findCellsByBtsId(
+                                String.valueOf(request.getCellId()));
+                    } catch (Exception e) {
+                        System.err.println("⚠️ Failed to fetch related cells: " + e.getMessage());
+                    }
+                }
+
+                // Send back both the requested cell and others from the same BTS
+                return Map.of(
+                    "requestedCell", chosen,
+                    "relatedCells", relatedCells
+                );
+            });
+    }
+
 }

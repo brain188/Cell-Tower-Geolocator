@@ -59,6 +59,11 @@ public class OpenCellIdClient implements ProviderClient {
                         resp.setLatitude(((Number) body.get("lat")).doubleValue());
                         resp.setLongitude(((Number) body.get("lon")).doubleValue());
 
+                        Object rangeObj = body.get("range");
+                        if (rangeObj instanceof Number) {
+                            resp.setAccuracy(((Number) rangeObj).doubleValue());
+                        }
+
                         // async reverse geocode
                         return Mono.fromFuture(reverseGeocodeService.addAddressToResponseAsync(resp))
                                    .then(Mono.just(resp));

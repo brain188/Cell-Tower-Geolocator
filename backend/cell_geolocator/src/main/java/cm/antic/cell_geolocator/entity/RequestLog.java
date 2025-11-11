@@ -18,6 +18,7 @@ public class RequestLog {
     private String mnc;
     private String lac;
     private String cellId;
+    private Double accuracy;
     private String providerUsed;
     private Double latitude;
     private Double longitude;

@@ -67,12 +67,15 @@ public class UnwiredLabsGeolocationClient implements ProviderClient {
                     // Unwired typically returns top-level "lat" and "lon" for the whole request
                     Object latObj = result.get("lat");
                     Object lonObj = result.get("lon");
+                    Object accObj = result.get("accuracy");
 
-                    if (latObj instanceof Number && lonObj instanceof Number) {
+                    if (latObj instanceof Number && lonObj instanceof Number && accObj instanceof Number) {
                         GeolocationResponse resp = new GeolocationResponse();
                         resp.setProviderUsed(getProviderName());
                         resp.setLatitude(((Number) latObj).doubleValue());
                         resp.setLongitude(((Number) lonObj).doubleValue());
+                        resp.setAccuracy(((Number) accObj).doubleValue());
+                        
                         return Mono.fromFuture(reverseGeocodeService.addAddressToResponseAsync(resp))
                                    .then(Mono.just(resp));
                     }
@@ -82,11 +85,15 @@ public class UnwiredLabsGeolocationClient implements ProviderClient {
                     if (resultObj instanceof Map<?, ?> resMap) {
                         Object rlat = resMap.get("lat");
                         Object rlon = resMap.get("lon");
-                        if (rlat instanceof Number && rlon instanceof Number) {
+                        Object racc = resMap.get("accuracy");
+
+                        if (rlat instanceof Number && rlon instanceof Number && accObj instanceof Number) {
                             GeolocationResponse resp = new GeolocationResponse();
                             resp.setProviderUsed(getProviderName());
                             resp.setLatitude(((Number) rlat).doubleValue());
                             resp.setLongitude(((Number) rlon).doubleValue());
+                            resp.setAccuracy(((Number) racc).doubleValue());
+                            
                             return Mono.fromFuture(reverseGeocodeService.addAddressToResponseAsync(resp))
                                        .then(Mono.just(resp));
                         }

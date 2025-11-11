@@ -27,7 +27,7 @@ const Signup = () => {
           console.log("Signup successful, response data:", data);
         }
         alert("Signup successful!");
-        navigate('/login');
+        navigate('/home');
       } else {
         let errorData = {};
         if (contentType && contentType.includes("application/json")) {
