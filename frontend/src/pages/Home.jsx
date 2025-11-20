@@ -24,7 +24,8 @@ const Home = () => {
     console.log("Sending request:", request);
 
     try {
-      const response = await fetch("http://localhost:8081/api/v1/geolocate/priority", {
+      const apiBase = import.meta.env.VITE_API_BASE;
+      const response = await fetch(`${apiBase}/api/v1/geolocate/priority`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
