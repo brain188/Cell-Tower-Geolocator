@@ -18,6 +18,12 @@ public class SecurityConfig {
     }
 
     @Bean
+    public JwtAuthenticationFilter jwtAuthenticationFilter() {
+        return new JwtAuthenticationFilter();
+    }
+
+
+    @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
             .csrf(csrf -> csrf.disable())
@@ -25,13 +31,14 @@ public class SecurityConfig {
                 .requestMatchers("/swagger-ui/**",
                                            "/v3/api-docs/**").permitAll()
                 .requestMatchers("/api/auth/**").permitAll()
+                .requestMatchers("/api/v1/geolocate/**").permitAll()
                 .requestMatchers("/api/v1/geolocate").permitAll()
                 .requestMatchers("/api/v1/geolocate/all").permitAll()
                 .requestMatchers("/api/v1/geolocate/priority").permitAll()
                 .requestMatchers("/api/v1/geolocate/priority/chosen").permitAll()
                 .anyRequest().authenticated()
             )
-            .addFilterBefore(new JwtAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class);
+            .addFilterBefore(jwtAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }
 }
