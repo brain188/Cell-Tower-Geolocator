@@ -18,13 +18,21 @@ const Home = () => {
   const [addressDetail, setAddressDetail] = useState(null);
   const [cityMarker, setCityMarker] = useState(null);
 
+  
+  const [range, setRange] = useState(null);
+
   const handleSearch = async (request) => {
     if (loading) return;
     setLoading(true);
     console.log("Sending request:", request);
 
+    setRange(request.range ?? null);
+
     try {
-      const apiBase = import.meta.env.VITE_API_BASE;
+      // const apiBase = import.meta.env.VITE_API_BASE;
+      // const response = await fetch(`${apiBase}/api/v1/geolocate/priority`, {
+      const apiBase = "http://127.0.0.1:8081";
+
       const response = await fetch(`${apiBase}/api/v1/geolocate/priority`, {
         method: "POST",
         headers: {
@@ -53,7 +61,6 @@ const Home = () => {
         throw new Error("Invalid geolocation data from server");
       }
 
-
       setLatitude(lat);
       setLongitude(lon);
       setAccuracy(acc);
@@ -70,6 +77,7 @@ const Home = () => {
         lac: request.lac,
         cellId: request.cellId,
         popupText: `Searched Cell Tower\nMCC: ${request.mcc}\nMNC: ${request.mnc}\nLAC: ${request.lac}\nCell ID: ${request.cellId}\nProvider: ${result.providerUsed ?? ""}`,
+        range: request.range ?? null, 
       };
 
       // RELATED CELLS MARKERS
@@ -78,7 +86,13 @@ const Home = () => {
         .map((c, i) => ({
           id: `related-${i}`,
           position: [parseFloat(c.latitude), parseFloat(c.longitude)],
-          popupText: `Related Cell\nLAC: ${c.lac}\nCI: ${c.ci}\nBTS: ${c["Id BTS New"] || "N/A"}`
+          lac: c.lac,
+          cellId: c.ci,
+          btsId: c["Id BTS New"] || "N/A",
+          provider: result.providerUsed ?? "Unknown",
+          address: c.address || "Unknown",
+          range: request.range ?? null, 
+          popupText: `Related Cell\nLAC: ${c.lac}\nCell ID: ${c.ci}\nBTS: ${c["Id BTS New"] || "N/A"}\nProvider: ${result.providerUsed ?? "Unknown"}\nAddress: ${c.address || "Unknown"}`
         }));
 
       // SET ALL MARKERS
@@ -94,6 +108,7 @@ const Home = () => {
       setAddress(null);
       setAddressDetail(null);
       setCellTowers([]);
+      setRange(null); 
     } finally {
       setLoading(false);
     }
@@ -153,6 +168,7 @@ const Home = () => {
           providerUsed={providerUsed}
           cellTowers={cellTowers}
           cityMarker={cityMarker}
+          range={range} 
         />
         <SearchForm onSearch={handleSearch} onCitySearch={handleCitySearch} />
         <ResponseForm

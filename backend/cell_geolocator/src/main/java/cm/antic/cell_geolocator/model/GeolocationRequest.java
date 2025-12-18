@@ -18,4 +18,7 @@ public class GeolocationRequest {
 
     @Schema(description = "Cell ID", example = "56789")
     private String cellId; 
+
+    @Schema(description = "Range in meters", example = "100")
+    private Integer range;
 }

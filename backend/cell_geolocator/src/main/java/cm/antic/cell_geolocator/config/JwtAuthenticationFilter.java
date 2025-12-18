@@ -19,25 +19,45 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        String path = request.getServletPath();
-        return path.startsWith("/api/v1/geolocate");
+        String uri = request.getRequestURI();
+
+        return uri.startsWith("/api/v1/geolocate")
+            || uri.startsWith("/api/auth")
+            || uri.startsWith("/swagger-ui")
+            || uri.startsWith("/v3/api-docs")
+            || uri.equals("/")
+            || uri.contains("favicon")
+            || uri.contains("index.html");
     }
 
     @Override
-    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
-        throws ServletException, IOException {
+    protected void doFilterInternal(HttpServletRequest request,
+                                    HttpServletResponse response,
+                                    FilterChain filterChain)
+            throws ServletException, IOException {
+
         String header = request.getHeader("Authorization");
+
         if (header != null && header.startsWith("Bearer ")) {
             String token = header.substring(7);
-            javax.crypto.SecretKey secretKey = new javax.crypto.spec.SecretKeySpec(secret.getBytes(), "HmacSHA256");
-            String username = Jwts.parser().verifyWith(secretKey).build().parseSignedClaims(token).getPayload().getSubject();
+
+            javax.crypto.SecretKey secretKey =
+                    new javax.crypto.spec.SecretKeySpec(secret.getBytes(), "HmacSHA256");
+
+            String username = Jwts.parser()
+                    .verifyWith(secretKey)
+                    .build()
+                    .parseSignedClaims(token)
+                    .getPayload()
+                    .getSubject();
+
             if (username != null) {
                 SecurityContextHolder.getContext().setAuthentication(
-                    new UsernamePasswordAuthenticationToken(username, null, null)
+                        new UsernamePasswordAuthenticationToken(username, null, null)
                 );
             }
         }
+
         filterChain.doFilter(request, response);
     }
-
 }

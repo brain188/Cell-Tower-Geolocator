@@ -6,3 +6,27 @@
   z-index: 1; 
 }
 
+
+.cell-popup .leaflet-popup-content {
+  margin: 0;
+}
+
+.popup-card {
+  padding: 10px;
+  min-width: 200px;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  font-size: 13px;
+}
+
+.popup-title {
+  font-weight: bold;
+  margin-bottom: 6px;
+  color: #ff7a00;
+}
+
+.popup-row {
+  margin-bottom: 4px;
+}
+

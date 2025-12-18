@@ -6,11 +6,18 @@ const SearchForm = ({ onSearch, onCitySearch }) => {
   const [mnc, setMnc] = useState('');
   const [lac, setLac] = useState('');
   const [cellId, setCellId] = useState('');
+  const [range, setRange] = useState('');
   const [city, setCity] = useState('');
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    onSearch({ mcc, mnc, lac, cellId });
+    onSearch({ 
+      mcc, 
+      mnc, 
+      lac, 
+      cellId,
+      range: range ? Number(range) : null,
+    });
   };
 
   const handleCityKeyPress = async (e) => {
@@ -89,6 +96,15 @@ const SearchForm = ({ onSearch, onCitySearch }) => {
               value={cellId}
               onChange={(e) => setCellId(e.target.value)}
               required
+            />
+          </div>
+          <div className="input-group">
+            <label htmlFor="range">Range (meters)</label>
+            <input
+              type="number"
+              id="range"
+              value={range}
+              onChange={(e) => setRange(e.target.value)}
             />
           </div>
           <button type="submit" className="search-button">

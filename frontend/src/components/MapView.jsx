@@ -6,7 +6,6 @@ import 'leaflet/dist/leaflet.css';
 import 'leaflet.markercluster/dist/MarkerCluster.css';
 import './MapView.css';
 
-// Fix missing default icons
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
@@ -35,9 +34,11 @@ const orangeIcon = L.icon({
 });
 
 const MapView = ({ latitude, longitude, accuracy, providerUsed, cellTowers, cityMarker }) => {
-  const position = latitude && longitude ? [latitude, longitude] : [4.0511, 9.7679]; // Cameroon default
+  const position = latitude && longitude ? [latitude, longitude] : [4.0511, 9.7679];
   const mapKey = latitude && longitude ? `${latitude}-${longitude}` : `default-${Date.now()}`;
   const zoom = latitude && longitude ? 14 : 6;
+
+  const [activeCircle, setActiveCircle] = React.useState(null); 
 
   // Separate requested cell from related ones
   const chosen = cellTowers.find(t => t.id.startsWith('search-'));
@@ -52,13 +53,11 @@ const MapView = ({ latitude, longitude, accuracy, providerUsed, cellTowers, city
       className="map-container-view-inner"
       zoomControl={false}
     >
-      {/* Base map (OpenStreetMap) */}
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
 
-      {/* Overlay map (LocationIQ streets, faint for detail) */}
       {import.meta.env.VITE_LOCATIONIQ_KEY && (
         <TileLayer
           attribution='&copy; <a href="https://locationiq.com/">LocationIQ</a>'
@@ -69,13 +68,13 @@ const MapView = ({ latitude, longitude, accuracy, providerUsed, cellTowers, city
 
       <ZoomControl position="topright" />
 
-      {/* REQUESTED CELL – BLUE MARKER + COVERAGE CIRCLE */}
+      {/* REQUESTED CELL */}
       {chosen && (
         <>
-          {accuracy && (
+          {chosen?.range && (
             <Circle
               center={chosen.position}
-              radius={accuracy}
+              radius={Number(chosen.range)}
               pathOptions={{
                 color: '#3388ff',
                 fillColor: '#3388ff',
@@ -84,20 +83,36 @@ const MapView = ({ latitude, longitude, accuracy, providerUsed, cellTowers, city
               }}
             />
           )}
-          <Marker position={chosen.position} icon={blueIcon}>
-            <Popup>
-              <strong>Requested Cell</strong><br />
-              MCC: {chosen.mcc}<br />
-              MNC: {chosen.mnc}<br />
-              LAC: {chosen.lac}<br />
-              Cell ID: {chosen.cellId}<br />
-              Provider: {providerUsed || 'Unknown'}
+
+          <Marker
+            position={chosen.position}
+            icon={blueIcon}
+            eventHandlers={{
+              click: () => {
+                if (accuracy) {
+                  setActiveCircle({
+                    center: chosen.position,
+                    radius: accuracy,
+                  });
+                }
+              },
+            }}
+          >
+            <Popup className='cell-popup'>
+              <div className="popup-card">
+                <div className="popup-title">📡 Requested Cell</div>
+                <div className="popup-row"><b>MCC:</b> {chosen.mcc}</div>
+                <div className="popup-row"><b>MNC:</b> {chosen.mnc}</div>
+                <div className="popup-row"><b>LAC:</b> {chosen.lac}</div>
+                <div className="popup-row"><b>Cell ID:</b> {chosen.cellId}</div>
+                <div className="popup-row"><b>Provider:</b> {providerUsed || 'Unknown'}</div>
+              </div>
             </Popup>
           </Marker>
         </>
       )}
 
-      {/* RELATED CELLS – ORANGE MARKERS + CLUSTERING */}
+      {/* RELATED CELLS */}
       {relatedCells.length > 0 && (
         <MarkerClusterGroup
           chunkedLoading
@@ -106,16 +121,59 @@ const MapView = ({ latitude, longitude, accuracy, providerUsed, cellTowers, city
           zoomToBoundsOnClick={true}
         >
           {relatedCells.map((tower) => (
-            <Marker key={tower.id} position={tower.position} icon={orangeIcon}>
-              <Popup>{tower.popupText}</Popup>
+            <Marker
+              key={tower.id}
+              position={tower.position}
+              icon={orangeIcon}
+              eventHandlers={{
+                click: () => {
+                  // ONLY draw circle if user entered a range
+                  if (!tower.range) return;
+
+                  setActiveCircle({
+                    center: tower.position,
+                    radius: Number(tower.range), 
+                  });
+                },
+              }}
+            >
+            <Popup className="cell-popup">
+              <div className="popup-card">
+                <div className="popup-title">📡 Related Cell</div>
+
+                <div className="popup-row"><b>LAC:</b> {tower.lac}</div>
+                <div className="popup-row"><b>Cell ID:</b> {tower.cellId}</div>
+                <div className="popup-row"><b>BTS:</b> {tower.btsId ?? "N/A"}</div>
+                <div className="popup-row"><b>Provider:</b> {tower.provider}</div>
+              </div>
+            </Popup>
             </Marker>
           ))}
         </MarkerClusterGroup>
       )}
 
-      {/* City marker */}
+
+
+      {/* ACTIVE CIRCLE */}
+      {activeCircle && (
+        <Circle
+          center={activeCircle.center}
+          radius={activeCircle.radius}
+          pathOptions={{
+            color: '#3388ff',
+            fillColor: '#3388ff',
+            fillOpacity: 0.25,
+            weight: 2,
+          }}
+        />
+      )}
+
       {cityMarker && (
-        <Marker key={cityMarker.id} position={cityMarker.position} icon={L.Icon.Default.prototype.options}>
+        <Marker 
+          key={cityMarker.id} 
+          position={cityMarker.position} 
+          icon={new L.Icon.Default()}>
+
           <Popup>{cityMarker.popupText}</Popup>
         </Marker>
       )}
