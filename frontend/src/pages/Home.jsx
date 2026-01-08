@@ -5,6 +5,7 @@ import MapView from "../components/MapView.jsx";
 import About from "../components/About.jsx";
 import Footer from "../components/Footer.jsx";
 import ResponseForm from "../components/ResponseForm.jsx";
+import { showToast } from "../utils/toast.jsx";
 import "./Home.css";
 
 const Home = () => {
@@ -26,17 +27,20 @@ const Home = () => {
     setLoading(true);
     console.log("Sending request:", request);
 
+    const token = localStorage.getItem('accessToken');
+
     setRange(request.range ?? null);
 
     try {
-      const apiBase = import.meta.env.VITE_API_BASE;
-      const response = await fetch(`${apiBase}/api/v1/geolocate/priority`, {
-      // const apiBase = "http://127.0.0.1:8081";
+      // const apiBase = import.meta.env.VITE_API_BASE;
       // const response = await fetch(`${apiBase}/api/v1/geolocate/priority`, {
+      const apiBase = "http://127.0.0.1:8081";
+      const response = await fetch(`${apiBase}/api/v1/geolocate/priority`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "User-Agent": "cell-geolocation-project/1.0 (tendongbrain@gmail.com)",
+          "Authorization": `Bearer ${token}`,
         },
         body: JSON.stringify(request),
       });
@@ -148,11 +152,11 @@ const Home = () => {
         setAddress(displayName);
         setAddressDetail(result.address || null);
       } else {
-        alert("City not found. Try again.");
+        showToast("City not found. Try again.");
       }
     } catch (err) {
       console.error("Error fetching location:", err);
-      alert("Error fetching location data.");
+      showToast("Error fetching location data.");
     }
   };
 

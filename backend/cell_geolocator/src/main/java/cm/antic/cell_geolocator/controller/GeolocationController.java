@@ -73,30 +73,35 @@ public class GeolocationController {
         description = "Compares provider distances & priority rankings, and returns chosen + related cells."
     )
     @PostMapping("/geolocate/priority")
-    public CompletableFuture<Map<String, Object>> getPriority(@RequestBody GeolocationRequest request) {
-        return aggregatorService.resolveWithPriorityAsync(request)
-            .thenApply(priorityResult -> {
-                List<Map<String, Object>> relatedCells = List.of();
+    public ResponseEntity<Map<String, Object>> getPriority(@RequestBody GeolocationRequest request) {
 
-                // Check if the top priority (chosen) result came from the local DB
-                if (priorityResult.getChosen() != null &&
-                    priorityResult.getChosen().getProviderUsed() != null &&
-                    priorityResult.getChosen().getProviderUsed().contains("LOCAL_DB(orange_cameroon)")) {
+        Map<String, Object> result =
+            aggregatorService.resolveWithPriorityAsync(request)
+                .thenApply(priorityResult -> {
+                    List<Map<String, Object>> relatedCells = List.of();
 
-                    try {
-                        relatedCells = cellTowerLocalService.findCellsByBtsId(
-                                String.valueOf(request.getCellId()));
-                    } catch (Exception e) {
-                        System.err.println("⚠️ Failed to fetch related cells: " + e.getMessage());
+                    // Check if the top priority (chosen) result came from the local DB
+                    if (priorityResult.getChosen() != null &&
+                        priorityResult.getChosen().getProviderUsed() != null &&
+                        priorityResult.getChosen().getProviderUsed().contains("LOCAL_DB(orange_cameroon)")) {
+
+                        try {
+                            relatedCells = cellTowerLocalService.findCellsByBtsId(
+                                    String.valueOf(request.getCellId()));
+                        } catch (Exception e) {
+                            System.err.println("Failed to fetch related cells: " + e.getMessage());
+                        }
                     }
-                }
 
-                // Return all priority results and related local cells (if applicable)
-                return Map.of(
-                    "priorityResults", priorityResult,
-                    "relatedCells", relatedCells
-                );
-            });
+                    // Return all priority results and related local cells (if applicable)
+                    return Map.of(
+                        "priorityResults", priorityResult,
+                        "relatedCells", relatedCells
+                    );
+                })
+                .join(); 
+
+        return ResponseEntity.ok(result);
     }
 
 
@@ -109,8 +114,10 @@ public class GeolocationController {
         description = "Returns the selected result and related cells based on same BTS."
     )
     @PostMapping("/geolocate/priority/chosen")
-    public CompletableFuture<Map<String, Object>> getPriorityChosen(@RequestBody GeolocationRequest request) {
-        return aggregatorService.resolveWithPriorityAsync(request)
+    public ResponseEntity<Map<String, Object>> getPriorityChosen(@RequestBody GeolocationRequest request) {
+
+        Map<String, Object> result =
+        aggregatorService.resolveWithPriorityAsync(request)
             .thenApply(priorityResult -> {
                 GeolocationResponse chosen = priorityResult.getChosen();
 
@@ -123,7 +130,7 @@ public class GeolocationController {
                         relatedCells = cellTowerLocalService.findCellsByBtsId(
                                 String.valueOf(request.getCellId()));
                     } catch (Exception e) {
-                        System.err.println("⚠️ Failed to fetch related cells: " + e.getMessage());
+                        System.err.println("Failed to fetch related cells: " + e.getMessage());
                     }
                 }
 
@@ -132,7 +139,11 @@ public class GeolocationController {
                     "requestedCell", chosen,
                     "relatedCells", relatedCells
                 );
-            });
+
+            })
+            .join(); 
+
+        return ResponseEntity.ok(result);
     }
 
 }

@@ -7,12 +7,16 @@ import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.security.core.Authentication;
 
+import cm.antic.cell_geolocator.entity.User;
 import cm.antic.cell_geolocator.entity.RequestLog;
 import cm.antic.cell_geolocator.model.GeolocationRequest;
 import cm.antic.cell_geolocator.model.GeolocationResponse;
 import cm.antic.cell_geolocator.repository.RequestLogRepository;
+import cm.antic.cell_geolocator.repository.UserRepository;
 import cm.antic.cell_geolocator.service.provider.ProviderClient;
 import io.github.resilience4j.retry.annotation.Retry;
 
@@ -31,8 +35,26 @@ public class GeolocationService {
     @Autowired
     private ReverseGeocodeService reverseGeocodeService;
 
+    @Autowired
+    private UserRepository userRepository;
+
     public GeolocationService(List<ProviderClient> providerClients) {
         this.providerClients = providerClients;
+    }
+
+    private void requireVerification() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated()) {
+            throw new RuntimeException("Not authenticated");
+        }
+
+        String username = auth.getName();
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        if (!user.isVerified()) {
+            throw new RuntimeException("Account Not Verified - Please Complete Company Verification");
+        }
     }
 
     /**
@@ -44,6 +66,7 @@ public class GeolocationService {
     )
     @Retry(name = "providerRetry")
     public CompletableFuture<GeolocationResponse> resolveAsync(GeolocationRequest request) {
+        requireVerification();
 
         List<String> priorities = priorityService.getProviderPriorities();
 
@@ -98,6 +121,8 @@ public class GeolocationService {
      * Synchronous wrapper for controller usage
      */
     public GeolocationResponse resolve(GeolocationRequest request) {
+        requireVerification();
+
         try {
             return resolveAsync(request).join();
         } catch (Exception e) {

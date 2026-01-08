@@ -1,46 +1,55 @@
-
+// src/pages/Signup.jsx
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
+import { FiEye, FiEyeOff } from 'react-icons/fi';
 import Header from '../components/Header.jsx';
+import { showToast } from '../utils/toast.jsx';
 import './Auth.css';
 
 const Signup = () => {
-  const [username, setUsername] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [formData, setFormData] = useState({ username: '', email: '', password: '' });
+  const [errors, setErrors] = useState({});
+  const [showPassword, setShowPassword] = useState(false);
   const navigate = useNavigate();
+
+  const validate = () => {
+    const newErrors = {};
+    if (!formData.username.trim()) newErrors.username = 'Username is required';
+    if (!formData.email.trim()) newErrors.email = 'Email is required';
+    else if (!/\S+@\S+\.\S+/.test(formData.email)) newErrors.email = 'Invalid email';
+    if (!formData.password) newErrors.password = 'Password is required';
+    else if (formData.password.length < 6) newErrors.password = 'Password must be 6+ characters';
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!validate()) return;
+
     try {
-      const response = await fetch('http://localhost:8081/api/auth/signup', {
+      const response = await fetch('http://localhost:8081/api/v1/auth/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, email, password }),
+        body: JSON.stringify(formData),
       });
-      
-      // Check if the response has content before trying to parse it
-      const contentType = response.headers.get("content-type");
+
       if (response.ok) {
-        if (contentType && contentType.includes("application/json")) {
-          const data = await response.json();
-          console.log("Signup successful, response data:", data);
-        }
-        alert("Signup successful!");
-        navigate('/home');
+        showToast('Account created successfully! Please log in.');
+        navigate('/login');
       } else {
-        let errorData = {};
-        if (contentType && contentType.includes("application/json")) {
-          errorData = await response.json();
-        } else {
-          throw new Error('Server returned a non-JSON error. Check backend logs.');
-        }
-        throw new Error(errorData.message || 'Signup failed with an unknown error.');
+        const error = await response.json();
+        showToast(error.message || 'Signup failed');
       }
-    } catch (error) {
-      console.error('Signup error:', error);
-      alert(error.message || 'An unexpected network error occurred. Please try again later.');
+    } catch (err) {
+      console.error(err);
+      showToast('Network error. Please try again.');
     }
+  };
+
+  const handleChange = (e) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+    setErrors({ ...errors, [e.target.name]: '' });
   };
 
   return (
@@ -50,40 +59,40 @@ const Signup = () => {
         <h2>Sign Up</h2>
         <form className="auth-form" onSubmit={handleSubmit}>
           <div className="form-group">
-            <label htmlFor="username">Username</label>
-            <input 
-              type="text" 
-              id="username" 
-              name="username" 
-              value={username} 
-              onChange={(e) => setUsername(e.target.value)} 
-              required 
-            />
+            <label>Username</label>
+            <input name="username" value={formData.username} onChange={handleChange} placeholder="username" />
+            {errors.username && <span className="error">{errors.username}</span>}
           </div>
           <div className="form-group">
-            <label htmlFor="email">Email Address</label>
-            <input 
-              type="email" 
-              id="email" 
-              name="email" 
-              value={email} 
-              onChange={(e) => setEmail(e.target.value)} 
-              required 
-            />
+            <label>Email</label>
+            <input type="email" name="email" value={formData.email} onChange={handleChange} placeholder="your@email.com" />
+            {errors.email && <span className="error">{errors.email}</span>}
           </div>
-          <div className="form-group">
-            <label htmlFor="password">Password</label>
-            <input 
-              type="password" 
-              id="password" 
-              name="password" 
-              value={password} 
-              onChange={(e) => setPassword(e.target.value)} 
-              required 
+          <div className="form-group password-group">
+          <label>Password</label>
+          <div className="password-wrapper">
+            <input
+              type={showPassword ? "text" : "password"}
+              name="password"
+              value={formData.password}
+              onChange={handleChange}
+              placeholder="6+ characters"
+              className="password-input"
             />
+            <span 
+              className="eye-icon" 
+              onClick={() => setShowPassword(!showPassword)}
+            >
+              {showPassword ? <FiEyeOff /> : <FiEye />}
+            </span>
           </div>
-          <button type="submit" className="auth-button">Sign Up</button>
+          {errors.password && <span className="error">{errors.password}</span>}
+        </div>
+          <button type="submit" className="auth-button">Create Account</button>
         </form>
+        <p className="auth-link">
+          Already have an account? <Link to="/login">Log in</Link>
+        </p>
       </div>
     </div>
   );

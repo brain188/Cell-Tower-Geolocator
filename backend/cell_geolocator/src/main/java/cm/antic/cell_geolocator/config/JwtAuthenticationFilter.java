@@ -1,60 +1,68 @@
 package cm.antic.cell_geolocator.config;
 
-import io.jsonwebtoken.Jwts;
+import cm.antic.cell_geolocator.security.JwtUtils;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import org.springframework.beans.factory.annotation.Value;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
+import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 
+@Component
+@Slf4j
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
-    @Value("${jwt.secret}")
-    private String secret;
+    private final JwtUtils jwtUtils;
+    private final UserDetailsService userDetailsService;
 
-    @Override
-    protected boolean shouldNotFilter(HttpServletRequest request) {
-        String uri = request.getRequestURI();
-
-        return uri.startsWith("/api/v1/geolocate")
-            || uri.startsWith("/api/auth")
-            || uri.startsWith("/swagger-ui")
-            || uri.startsWith("/v3/api-docs")
-            || uri.equals("/")
-            || uri.contains("favicon")
-            || uri.contains("index.html");
+    public JwtAuthenticationFilter(JwtUtils jwtUtil, UserDetailsService userDetailsService) {
+        this.jwtUtils = jwtUtil;
+        this.userDetailsService = userDetailsService;
     }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,
-                                    FilterChain filterChain)
-            throws ServletException, IOException {
+                                    FilterChain filterChain) throws ServletException, IOException {
 
-        String header = request.getHeader("Authorization");
+        final String authHeader = request.getHeader("Authorization");
 
-        if (header != null && header.startsWith("Bearer ")) {
-            String token = header.substring(7);
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            filterChain.doFilter(request, response);
+            return;
+        }
 
-            javax.crypto.SecretKey secretKey =
-                    new javax.crypto.spec.SecretKeySpec(secret.getBytes(), "HmacSHA256");
+        final String jwt = authHeader.substring(7);
+        final String username;
 
-            String username = Jwts.parser()
-                    .verifyWith(secretKey)
-                    .build()
-                    .parseSignedClaims(token)
-                    .getPayload()
-                    .getSubject();
+        try {
+            username = jwtUtils.extractUsername(jwt);
+        } catch (Exception e) {
+            log.warn("Invalid JWT token: {}", e.getMessage());
+            filterChain.doFilter(request, response);
+            return;
+        }
 
-            if (username != null) {
-                SecurityContextHolder.getContext().setAuthentication(
-                        new UsernamePasswordAuthenticationToken(username, null, null)
+        if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+            UserDetails userDetails = this.userDetailsService.loadUserByUsername(username);
+
+            if (jwtUtils.isTokenValid(jwt, userDetails.getUsername())) {
+                UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
+                        userDetails,
+                        null,
+                        userDetails.getAuthorities()
                 );
+                authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                SecurityContextHolder.getContext().setAuthentication(authToken);
+                log.info("Authenticated user: {} for request: {}", username, request.getRequestURI());
             }
         }
 

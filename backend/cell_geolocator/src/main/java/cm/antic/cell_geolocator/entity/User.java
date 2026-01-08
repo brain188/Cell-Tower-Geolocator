@@ -1,9 +1,6 @@
 package cm.antic.cell_geolocator.entity;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 import lombok.Data;
 
 @Entity
@@ -13,9 +10,30 @@ public class User {
     @Id
     @GeneratedValue
     private Long id;
+
+    @Column(unique = true, nullable = false)
     private String username;
+
+    @Column(unique = true, nullable = false)
     private String email;
+
+    @Column(nullable = false)
     private String password;
-    private String role = "USER";
+
+    @Column(nullable = false)
+    private String role = "RULE_USER";
+
+    private String refreshToken;
+
+    @Column(nullable = false)
+    private Boolean verified = false;
+
+    public Boolean isVerified() {
+        return verified != null ? verified : false;
+    }
+
+    public void setVerified(Boolean verified) {
+        this.verified = verified;
+    }
 
 }

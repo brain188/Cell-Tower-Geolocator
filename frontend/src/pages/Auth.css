@@ -20,7 +20,7 @@
 
 .auth-container h2 {
   font-size: 2rem;
-  color: var(--secondary-color);
+  color: white;
   margin-bottom: 1.5rem;
 }
 
@@ -63,4 +63,65 @@
 
 .auth-button:hover {
   background-color: var(--link-hover-color);
+}
+
+.error {
+  color: #e74c3c;
+  font-size: 0.9rem;
+  margin-top: 0.25rem;
+  display: block;
+}
+
+.auth-link {
+  margin-top: 1.5rem;
+  color: var(--gray-dark);
+}
+
+.auth-link a {
+  color: var(--primary-color);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.auth-link a:hover {
+  text-decoration: underline;
+}
+
+.password-group {
+  position: relative;
+}
+
+.password-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.password-input {
+  width: 100%;
+  padding: 0.75rem 40px 0.75rem 0.75rem; 
+  border: 1px solid var(--gray-light);
+  border-radius: 4px;
+  box-sizing: border-box;
+}
+
+.eye-icon {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  cursor: pointer;
+  color: var(--gray-dark);
+  font-size: 1.2rem;
+  transition: color 0.2s ease;
+}
+
+.eye-icon:hover {
+  color: var(--primary-color);
+}
+
+.error {
+  color: #e74c3c;
+  font-size: 0.875rem;
+  margin-top: 0.25rem;
+  display: block;
 }
