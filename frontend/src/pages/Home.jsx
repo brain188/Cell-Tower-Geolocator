@@ -32,10 +32,10 @@ const Home = () => {
     setRange(request.range ?? null);
 
     try {
-      // const apiBase = import.meta.env.VITE_API_BASE;
-      // const response = await fetch(`${apiBase}/api/v1/geolocate/priority`, {
-      const apiBase = "http://127.0.0.1:8081";
+      const apiBase = import.meta.env.VITE_API_BASE;
       const response = await fetch(`${apiBase}/api/v1/geolocate/priority`, {
+      // const apiBase = "http://127.0.0.1:8081";
+      // const response = await fetch(`${apiBase}/api/v1/geolocate/priority`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
