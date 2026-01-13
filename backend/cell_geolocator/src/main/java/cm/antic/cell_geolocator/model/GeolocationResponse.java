@@ -22,6 +22,15 @@ public class GeolocationResponse {
     @Schema(description = "The provider used for resolution", example = "ProviderA")
     private String providerUsed;
 
+    @Schema(description = "The Cell ID that was used for resolution", example = "123456")
+    private String cellId;
+
+    @Schema(description = "The original requested Cell ID", example = "123456")
+    private String originalRequestedCellId;
+
+    @Schema(description = "Indicates if a fallback method was used for resolution", example = "false")
+    private Boolean fallbackUsed;
+
     @Schema(description = "Address of the resolved location", example = "1 Infinite Loop, Cupertino, CA 95014, USA")
     private String address;
 

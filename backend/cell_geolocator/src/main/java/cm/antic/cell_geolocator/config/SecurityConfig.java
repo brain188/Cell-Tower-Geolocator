@@ -43,7 +43,7 @@ public class SecurityConfig {
                 // Public endpoints
                 .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
                 .requestMatchers("/api/v1/auth/**").permitAll()
-                                                                                          // All other endpoints require authentication
+                // All other endpoints require authentication
                 .requestMatchers("/api/v1/geolocate/priority").authenticated()
                 .anyRequest().authenticated()
             )

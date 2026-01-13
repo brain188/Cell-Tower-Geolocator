@@ -14,6 +14,7 @@ import cm.antic.cell_geolocator.model.GeolocationResponse;
 import cm.antic.cell_geolocator.service.GeolocationService;
 import cm.antic.cell_geolocator.service.GeolocationAggregatorService;
 import cm.antic.cell_geolocator.service.CellTowerLocalService;
+import cm.antic.cell_geolocator.service.AreaCellService;
 import io.github.bucket4j.Bucket;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -39,6 +40,9 @@ public class GeolocationController {
 
     @Autowired
     private Bucket rateLimiterBucket;
+
+    @Autowired
+    private AreaCellService areaCellService;
 
 
     // PRIORITY-FIRST FASTEST RESULT FROM PROVIDERS
@@ -145,5 +149,22 @@ public class GeolocationController {
 
         return ResponseEntity.ok(result);
     }
+
+    // GET ALL CELLS BY AREA
+    @Operation(
+        summary = "Get all cells by area",
+        description = "Returns all cells in a given area"
+    )
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Resolved",
+            content = @Content(schema = @Schema(implementation = Map.class))),
+        @ApiResponse(responseCode = "429", description = "Too Many Requests")
+    })
+
+    @GetMapping("/cells/by-area")
+    public ResponseEntity<List<Map<String, Object>>> getCellsByArea(@RequestParam String query) {
+        List<Map<String, Object>> cells = areaCellService.getCellsByArea(query);
+        return ResponseEntity.ok(cells);
+}
 
 }
