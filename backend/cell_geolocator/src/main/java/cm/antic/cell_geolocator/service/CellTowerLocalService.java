@@ -70,7 +70,7 @@ public class CellTowerLocalService {
                            longitude,
                            nomdusite AS operator_name,
                            "Id BTS New",
-                           ABS(ci - ?) AS distance
+                           ABS(CAST(ci AS INTEGER) - ?) AS distance
                     FROM orange_cameroon
                     WHERE lac = ?
                     ORDER BY distance ASC

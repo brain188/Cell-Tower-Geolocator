@@ -98,13 +98,29 @@ const MapView = ({ latitude, longitude, accuracy, providerUsed, cellTowers, city
               },
             }}
           >
-            <Popup className='cell-popup'>
+            <Popup className="cell-popup">
               <div className="popup-card">
                 <div className="popup-title">📡 Requested Cell</div>
+
+                <div className="popup-row">
+                  <b>Original Requested:</b> {chosen.originalRequestedCellId || chosen.cellId}
+                </div>
+
+                <div className="popup-row">
+                  <b>Used Cell ID:</b> {chosen.cellId}
+                </div>
+
+                {chosen.fallbackUsed && (
+                  <div className="popup-row fallback-info">
+                    <span style={{ color: '#e67e22', fontWeight: 'bold' }}>
+                       Fallback used (closest available Cell ID)
+                    </span>
+                  </div>
+                )}
+
                 <div className="popup-row"><b>MCC:</b> {chosen.mcc}</div>
                 <div className="popup-row"><b>MNC:</b> {chosen.mnc}</div>
                 <div className="popup-row"><b>LAC:</b> {chosen.lac}</div>
-                <div className="popup-row"><b>Cell ID:</b> {chosen.cellId}</div>
                 <div className="popup-row"><b>Provider:</b> {providerUsed || 'Unknown'}</div>
               </div>
             </Popup>

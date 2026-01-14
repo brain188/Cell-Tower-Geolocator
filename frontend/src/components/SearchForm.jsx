@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import './SearchForm.css';
 
 const SearchForm = ({ onSearch, onCitySearch }) => {
@@ -7,7 +7,55 @@ const SearchForm = ({ onSearch, onCitySearch }) => {
   const [lac, setLac] = useState('');
   const [cellId, setCellId] = useState('');
   const [range, setRange] = useState('');
-  const [city, setCity] = useState('');
+  const [city, setCity] = useState(''); 
+  const [suggestions, setSuggestions] = useState([]);
+  const [showDropdown, setShowDropdown] = useState(false);
+
+  const locationiqKey = import.meta.env.VITE_LOCATIONIQ_KEY;
+
+  // Autocomplete effect
+  useEffect(() => {
+    if (city.trim().length < 3) {
+      setSuggestions([]);
+      setShowDropdown(false);
+      return;
+    }
+
+    const fetchSuggestions = async () => {
+      try {
+        const url = locationiqKey
+          ? `https://api.locationiq.com/v1/autocomplete?key=${locationiqKey}&q=${encodeURIComponent(city)}&limit=5&format=json`
+          : `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(city)}&limit=5`;
+
+        const response = await fetch(url);
+        const data = await response.json();
+        setSuggestions(data);
+        setShowDropdown(true);
+      } catch (err) {
+        console.error('Autocomplete error:', err);
+      }
+    };
+
+    fetchSuggestions();
+  }, [city, locationiqKey]);
+
+  // Handle selecting a suggestion
+  const handleSelectSuggestion = (suggestion) => {
+    const placeName = suggestion.display_name || suggestion.display_place || suggestion.name || city;
+    setCity(placeName);
+    setShowDropdown(false);
+    onCitySearch({ name: placeName }); 
+  };
+
+  const handleCityKeyPress = async (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (!city.trim()) return;
+
+      onCitySearch({ name: city });
+      setShowDropdown(false);
+    }
+  };
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -20,41 +68,34 @@ const SearchForm = ({ onSearch, onCitySearch }) => {
     });
   };
 
-  const handleCityKeyPress = async (e) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      if (!city.trim()) return;
-
-      try {
-        const response = await fetch(
-          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(city)}`
-        );
-        const data = await response.json();
-        if (data && data.length > 0) {
-          const { lat, lon } = data[0];
-          onCitySearch({ lat: parseFloat(lat), lon: parseFloat(lon), name: city });
-        } else {
-          alert('City not found');
-        }
-      } catch (err) {
-        console.error('Error fetching city location:', err);
-        alert('Error fetching city location');
-      }
-    }
-  };
-
   return (
     <div className="search-container">
+      {/* Area/City Search with Icon + Dropdown */}
       <div className="search-header">
-        <input
-          type="text"
-          placeholder=" Find a city (e.g. London)"
-          className="city-search-input"
-          value={city}
-          onChange={(e) => setCity(e.target.value)}
-          onKeyPress={handleCityKeyPress}
-        />
+        <div className="city-search-wrapper">
+          <input
+            type="text"
+            placeholder=" Find a city (e.g. London)"
+            className="city-search-input"
+            value={city}
+            onChange={(e) => setCity(e.target.value)}
+            onKeyPress={handleCityKeyPress}
+            onFocus={() => suggestions.length > 0 && setShowDropdown(true)}
+          />
+          <span className="search-icon"></span>
+
+          {showDropdown && suggestions.length > 0 && (
+            <ul className="suggestions-dropdown">
+              {suggestions.map((sug, i) => (
+                <li key={i} onClick={() => handleSelectSuggestion(sug)}>
+                  {sug.display_name || sug.display_place || sug.name}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       </div>
+
       <div className="search-form-panel">
         <h3 className="search-panel-title">Search Cell Towers</h3>
         <form onSubmit={handleSubmit} className="input-group-container">
