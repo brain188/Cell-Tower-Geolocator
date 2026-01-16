@@ -9,12 +9,16 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import cm.antic.cell_geolocator.model.CoverageRequest;
+import cm.antic.cell_geolocator.model.CoverageResponse;
 import cm.antic.cell_geolocator.model.GeolocationRequest;
 import cm.antic.cell_geolocator.model.GeolocationResponse;
 import cm.antic.cell_geolocator.service.GeolocationService;
 import cm.antic.cell_geolocator.service.GeolocationAggregatorService;
 import cm.antic.cell_geolocator.service.CellTowerLocalService;
 import cm.antic.cell_geolocator.service.AreaCellService;
+import cm.antic.cell_geolocator.service.CoverageService;
+
 import io.github.bucket4j.Bucket;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -43,6 +47,9 @@ public class GeolocationController {
 
     @Autowired
     private AreaCellService areaCellService;
+
+    @Autowired
+    private CoverageService coverageService;
 
 
     // PRIORITY-FIRST FASTEST RESULT FROM PROVIDERS
@@ -165,6 +172,23 @@ public class GeolocationController {
     public ResponseEntity<List<Map<String, Object>>> getCellsByArea(@RequestParam String query) {
         List<Map<String, Object>> cells = areaCellService.getCellsByArea(query);
         return ResponseEntity.ok(cells);
-}
+    }
 
-}
+    // GET PENETRATION RATE
+    @Operation(
+        summary = "Calculate penetration rate",
+        description = "Returns the penetration rate of a given area"
+    )
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Resolved",
+            content = @Content(schema = @Schema(implementation = Map.class))),
+        @ApiResponse(responseCode = "429", description = "Too Many Requests")
+    })
+    
+    @PostMapping("/coverage/penetration")
+    public ResponseEntity<CoverageResponse> calculateCoverage(@RequestBody CoverageRequest request) {
+        CoverageResponse resp = coverageService.calculateCoverage(request.getArea(), request.getRadiusMeters());
+        return ResponseEntity.ok(resp);
+    }
+
+}    
