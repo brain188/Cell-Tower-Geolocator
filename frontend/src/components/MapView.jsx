@@ -33,7 +33,7 @@ const orangeIcon = L.icon({
   shadowSize: [41, 41],
 });
 
-const MapView = ({ latitude, longitude, accuracy, providerUsed, cellTowers, cityMarker }) => {
+const MapView = ({ latitude, longitude, accuracy, providerUsed, cellTowers, cityMarker, polygons = [] }) => {
   const position = latitude && longitude ? [latitude, longitude] : [4.0511, 9.7679];
   const mapKey = latitude && longitude ? `${latitude}-${longitude}` : `default-${Date.now()}`;
   const zoom = latitude && longitude ? 14 : 6;
@@ -135,6 +135,19 @@ const MapView = ({ latitude, longitude, accuracy, providerUsed, cellTowers, city
           showCoverageOnHover={false}
           spiderfyOnMaxZoom={true}
           zoomToBoundsOnClick={true}
+          iconCreateFunction={(cluster) => {
+          const count = cluster.getChildCount();
+          let sizeClass = 'small';
+          if (count >= 100) sizeClass = 'large';
+          else if (count >= 10) sizeClass = 'medium';
+
+          return L.divIcon({
+            html: `<div class="custom-cluster ${sizeClass}">${count}</div>`,
+            className: '', 
+            iconSize: L.point(50, 50), // Bigger circle
+            iconAnchor: [25, 25] // Center the icon
+          });
+        }}
         >
           {relatedCells.map((tower) => (
             <Marker
@@ -183,6 +196,21 @@ const MapView = ({ latitude, longitude, accuracy, providerUsed, cellTowers, city
           }}
         />
       )}
+
+      {/* COVERAGE POLYGONS (circles per cell) */}
+      {polygons && polygons.length > 0 && polygons.map(poly => (
+        <Circle
+          key={poly.id}
+          center={poly.center || [0, 0]} // Fallback if no center
+          radius={poly.range}   // Use radius from prop
+          pathOptions={{
+            color: 'blue',
+            fillColor: 'blue',
+            fillOpacity: 0.2,
+            weight: 1,
+          }}
+        />
+      ))}
 
       {cityMarker && (
         <Marker 

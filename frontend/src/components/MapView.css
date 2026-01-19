@@ -40,3 +40,43 @@
   border-top: 1px dashed #e67e22;
   font-style: italic;
 }
+
+/* Custom cluster icons */
+.custom-cluster {
+  background-color: #4CAF50; 
+  color: white;
+  font-weight: bold;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 0 5px rgba(51, 136, 255, 0.4);
+  text-align: center;
+  line-height: 1;
+}
+
+/* Size variations based on count */
+.custom-cluster.small {
+  width: 15px;
+  height: 15px;
+  font-size: 10px;
+}
+
+.custom-cluster.medium {
+  width: 20px;
+  height: 20px;
+  font-size: 10px;
+}
+
+.custom-cluster.large {
+  width: 25px;
+  height: 25px;
+  font-size: 10px;
+}
+
+/* Hover effect for better UX */
+.custom-cluster:hover {
+  background-color: #2c75e2;
+  transform: scale(1.1);
+  transition: all 0.2s;
+}

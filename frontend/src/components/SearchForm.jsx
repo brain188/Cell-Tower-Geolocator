@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import './SearchForm.css';
 
-const SearchForm = ({ onSearch, onCitySearch }) => {
+const SearchForm = ({ onSearch, onCitySearch, onRangeChange }) => {
   const [mcc, setMcc] = useState('');
   const [mnc, setMnc] = useState('');
   const [lac, setLac] = useState('');
@@ -12,6 +12,11 @@ const SearchForm = ({ onSearch, onCitySearch }) => {
   const [showDropdown, setShowDropdown] = useState(false);
 
   const locationiqKey = import.meta.env.VITE_LOCATIONIQ_KEY;
+
+  const handleRangeChange = (e) => {
+    setRange(e.target.value);
+    onRangeChange(e.target.value); 
+  };
 
   // Autocomplete effect
   useEffect(() => {
@@ -44,7 +49,7 @@ const SearchForm = ({ onSearch, onCitySearch }) => {
     const placeName = suggestion.display_name || suggestion.display_place || suggestion.name || city;
     setCity(placeName);
     setShowDropdown(false);
-    onCitySearch({ name: placeName }); 
+    onCitySearch({ name: placeName, radius: Number(range) }); 
   };
 
   const handleCityKeyPress = async (e) => {
@@ -52,7 +57,7 @@ const SearchForm = ({ onSearch, onCitySearch }) => {
       e.preventDefault();
       if (!city.trim()) return;
 
-      onCitySearch({ name: city });
+      onCitySearch({ name: city, radius: Number(range) });
       setShowDropdown(false);
     }
   };
@@ -145,7 +150,7 @@ const SearchForm = ({ onSearch, onCitySearch }) => {
               type="number"
               id="range"
               value={range}
-              onChange={(e) => setRange(e.target.value)}
+              onChange={handleRangeChange}
             />
           </div>
           <button type="submit" className="search-button">

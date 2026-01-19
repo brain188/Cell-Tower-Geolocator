@@ -17,6 +17,7 @@ const Home = () => {
   const [providerUsed, setProviderUsed] = useState(null);
   const [address, setAddress] = useState(null);
   const [addressDetail, setAddressDetail] = useState(null);
+  const [polygons, setPolygons] = useState([]);
   // const [cityMarker, setCityMarker] = useState(null);
 
   
@@ -150,6 +151,7 @@ const Home = () => {
         const lat = parseFloat(result.lat);
         const lon = parseFloat(result.lon);
         const displayName = result.display_name || name;
+        const backendArea = name;
 
         // Set map center to searched location 
         setLatitude(lat);
@@ -160,7 +162,7 @@ const Home = () => {
         setAddressDetail(result.address || null);
 
         const cellsResponse = await fetch(
-          `http://localhost:8081/api/v1/cells/by-area?query=${encodeURIComponent(displayName)}`,
+          `http://localhost:8081/api/v1/cells/by-area?query=${encodeURIComponent(backendArea)}`,
           {
             method: 'GET',
             headers: {
@@ -173,19 +175,19 @@ const Home = () => {
           const cells = await cellsResponse.json();
 
           if (cells.length === 0) {
-            showToast(`No cells found in ${displayName}`, "info");
+            showToast(`No cells found in ${backendArea}`, "info");
           } else {
             // Add cells as markers on the map
             const areaMarkers = cells.map((c, i) => ({
               id: `area-cell-${i}-${Date.now()}`,
               position: [parseFloat(c.latitude), parseFloat(c.longitude)],
-              popupText: `Cell in ${displayName}\nLAC: ${c.lac || 'N/A'}\nCell ID: ${c.ci || 'N/A'}\nSite: ${c.site_name || c.nomdusite || 'N/A'}\nBTS ID: ${c.bts_id || c["Id BTS New"] || 'N/A'}\nLocalite: ${c.localite || 'N/A'}\nQuartier: ${c.quartier || 'N/A'}\nRegion: ${c.region || 'N/A'}\nDept: ${c.departement || 'N/A'}`
+              popupText: `Cell in ${backendArea}\nLAC: ${c.lac || 'N/A'}\nCell ID: ${c.ci || 'N/A'}\nSite: ${c.site_name || c.nomdusite || 'N/A'}\nBTS ID: ${c.bts_id || c["Id BTS New"] || 'N/A'}\nLocalite: ${c.localite || 'N/A'}\nQuartier: ${c.quartier || 'N/A'}\nRegion: ${c.region || 'N/A'}\nDept: ${c.departement || 'N/A'}`
             }));
 
             // Add to existing cell towers (markers)
             setCellTowers(prev => [...prev, ...areaMarkers]);
 
-            showToast(`Showing ${cells.length} cells in ${displayName}`, "success");
+            showToast(`Showing ${cells.length} cells in ${backendArea}`, "success");
 
             // Optional: Zoom closer to see cells clearly
             // setZoom(14); // Uncomment if you have setZoom state in Home.jsx
@@ -194,11 +196,45 @@ const Home = () => {
           showToast("Failed to fetch cells for this area", "error");
         }
 
+        const coverageRes = await fetch('http://localhost:8081/api/v1/coverage/penetration', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('accessToken')}`
+        },
+        body: JSON.stringify({
+          area: backendArea,
+          radiusMeters: Number(range) 
+        })
+      });
+
+      if (coverageRes.ok) {
+        const coverage = await coverageRes.json();
+        showToast(
+          coverage.message,
+          coverage.classification === "High" ? "success" :
+          coverage.classification === "Medium" ? "info" : "warning"
+        );
+
+        // Draw coverage polygons (circles per cell)
+        if (coverage.coveragePolygonsGeoJson && coverage.coveragePolygonsGeoJson.length > 0) {
+          const polygonMarkers = coverage.coveragePolygonsGeoJson.map((geoJson, i) => ({
+            id: `coverage-poly-${i}-${Date.now()}`,
+            geoJson: JSON.parse(geoJson),
+            style: { color: 'blue', fillColor: 'blue', fillOpacity: 0.2 }
+          }));
+
+          setPolygons(prev => [...prev, ...polygonMarkers]); // New state for polygons
+        }
+      } else {
+        showToast("Failed to calculate coverage penetration", "error");
+      }
+
       } else {
         showToast("Location not found. Try again.", "warning");
       }
     } catch (err) {
-      console.error("Error fetching location or cells:", err);
+      console.error("Error fetching location or coverage:", err);
       showToast("Error fetching data. Check connection.", "error");
     }
   };
@@ -215,8 +251,13 @@ const Home = () => {
           cellTowers={cellTowers}
           // cityMarker={cityMarker}
           range={range} 
+          polygons={polygons}
         />
-        <SearchForm onSearch={handleSearch} onCitySearch={handleCitySearch} />
+        <SearchForm 
+          onSearch={handleSearch} 
+          onCitySearch={handleCitySearch}
+          onRangeChange={setRange} 
+          />
         <ResponseForm
           latitude={latitude}
           longitude={longitude}
