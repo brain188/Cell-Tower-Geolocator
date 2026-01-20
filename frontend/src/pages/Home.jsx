@@ -18,9 +18,8 @@ const Home = () => {
   const [address, setAddress] = useState(null);
   const [addressDetail, setAddressDetail] = useState(null);
   const [polygons, setPolygons] = useState([]);
-  // const [cityMarker, setCityMarker] = useState(null);
+  const [penetrationResult, setPenetrationResult] = useState(null); 
 
-  
   const [range, setRange] = useState(null);
 
   const handleSearch = async (request) => {
@@ -33,8 +32,6 @@ const Home = () => {
     setRange(request.range ?? null);
 
     try {
-      // const apiBase = import.meta.env.VITE_API_BASE;
-      // const response = await fetch(`${apiBase}/api/v1/geolocate/priority`, {
       const apiBase = "http://127.0.0.1:8081";
       const response = await fetch(`${apiBase}/api/v1/geolocate/priority`, {
         method: "POST",
@@ -60,7 +57,6 @@ const Home = () => {
       const lon = result?.longitude ?? null;
       const acc = result?.accuracy ?? null;
 
-      // Validate coordinates
       if (lat === null || lon === null) {
         throw new Error("Invalid geolocation data from server");
       }
@@ -73,14 +69,15 @@ const Home = () => {
       setAddressDetail(result?.addressDetail ?? null);
 
       const fullChosen = {
-      ...result,
-      originalRequestedCellId: result.originalRequestedCellId || request.cellId,
-      cellId: result.cellId || request.cellId,
-      fallbackUsed: result.fallbackUsed || false,
-      relatedCells: result.relatedCells || []
-    };
+        ...result,
+        originalRequestedCellId: result.originalRequestedCellId || request.cellId,
+        cellId: result.cellId || request.cellId,
+        fallbackUsed: result.fallbackUsed || false,
+        relatedCells: result.relatedCells || [],
+        technoCell: result.technoCell || 'U',
+        frequenceCell: result.frequenceCell || 'N/A'
+      };
 
-      // REQUESTED CELL MARKER
       const searchMarker = {
         id: `search-${Date.now()}`,
         position: [lat, lon],
@@ -90,12 +87,12 @@ const Home = () => {
         cellId: fullChosen.cellId || request.cellId,
         originalRequestedCellId: fullChosen.originalRequestedCellId || request.cellId,
         fallbackUsed: fullChosen.fallbackUsed || false,
-        // popupText: `Searched Cell Tower\nMCC: ${request.mcc}\nMNC: ${request.mnc}\nLAC: ${request.lac}\nCell ID: ${request.cellId}\nProvider: ${result.providerUsed ?? ""}`,
-        popupText: `Searched Cell Tower\nMCC: ${request.mcc}\nMNC: ${request.mnc}\nLAC: ${request.lac}\nOriginal Requested: ${fullChosen.originalRequestedCellId}\nUsed Cell ID: ${fullChosen.cellId}${fullChosen.fallbackUsed ? ' (FallbackUsed)' : ''}\nProvider: ${result.providerUsed ?? ""}`,
+        technoCell: fullChosen.technoCell,
+        frequenceCell: fullChosen.frequenceCell,
+        popupText: `Searched Cell Tower\nMCC: ${request.mcc}\nMNC: ${request.mnc}\nLAC: ${request.lac}\nOriginal Requested: ${fullChosen.originalRequestedCellId}\nUsed Cell ID: ${fullChosen.cellId}${fullChosen.fallbackUsed ? ' (Fallback)' : ''}\nProvider: ${result.providerUsed ?? ""}`,
         range: request.range ?? null, 
       };
 
-      // RELATED CELLS MARKERS
       const formattedRelated = relatedCells
         .filter(c => c.latitude != null && c.longitude != null)
         .map((c, i) => ({
@@ -104,13 +101,14 @@ const Home = () => {
           lac: c.lac,
           cellId: c.ci,
           btsId: c["Id BTS New"] || "N/A",
+          technoCell: c.techno_cell || 'U',
+          frequenceCell: c.frequence_cell || 'N/A',
           provider: result.providerUsed ?? "Unknown",
           address: c.address || "Unknown",
           range: request.range ?? null, 
           popupText: `Related Cell\nLAC: ${c.lac}\nCell ID: ${c.ci}\nBTS: ${c["Id BTS New"] || "N/A"}\nProvider: ${result.providerUsed ?? "Unknown"}\nAddress: ${c.address || "Unknown"}`
         }));
 
-      // SET ALL MARKERS
       setCellTowers([searchMarker, ...formattedRelated]);
 
     } catch (error) {
@@ -151,9 +149,9 @@ const Home = () => {
         const lat = parseFloat(result.lat);
         const lon = parseFloat(result.lon);
         const displayName = result.display_name || name;
-        const backendArea = name;
+        const backendArea = name; // short name for backend
 
-        // Set map center to searched location 
+        // Set map center
         setLatitude(lat);
         setLongitude(lon);
         setAccuracy(null);
@@ -161,12 +159,13 @@ const Home = () => {
         setAddress(displayName);
         setAddressDetail(result.address || null);
 
+        // === ALWAYS fetch cells (regardless of range) ===
         const cellsResponse = await fetch(
           `http://localhost:8081/api/v1/cells/by-area?query=${encodeURIComponent(backendArea)}`,
           {
             method: 'GET',
             headers: {
-              'Authorization': `Bearer ${localStorage.getItem('accessToken')}` 
+              'Authorization': `Bearer ${localStorage.getItem('accessToken')}`
             }
           }
         );
@@ -177,64 +176,68 @@ const Home = () => {
           if (cells.length === 0) {
             showToast(`No cells found in ${backendArea}`, "info");
           } else {
-            // Add cells as markers on the map
             const areaMarkers = cells.map((c, i) => ({
               id: `area-cell-${i}-${Date.now()}`,
               position: [parseFloat(c.latitude), parseFloat(c.longitude)],
-              popupText: `Cell in ${backendArea}\nLAC: ${c.lac || 'N/A'}\nCell ID: ${c.ci || 'N/A'}\nSite: ${c.site_name || c.nomdusite || 'N/A'}\nBTS ID: ${c.bts_id || c["Id BTS New"] || 'N/A'}\nLocalite: ${c.localite || 'N/A'}\nQuartier: ${c.quartier || 'N/A'}\nRegion: ${c.region || 'N/A'}\nDept: ${c.departement || 'N/A'}`
+              technoCell: c.techno_cell || 'U',
+              frequenceCell: c.frequence_cell || 'N/A',
+              popupText: `Cell in ${backendArea}\nLAC: ${c.lac || 'N/A'}\nCell ID: ${c.ci || 'N/A'}\nSite: ${c.site_name || c.nomdusite || 'N/A'}\nBTS ID: ${c.bts_id || c["Id BTS New"] || 'N/A'}\nLocalite: ${c.localite || 'N/A'}\nQuartier: ${c.quartier || 'N/A'}\nRegion: ${c.region || 'N/A'}\nDept: ${c.departement || 'N/A'}\nFrequency: ${c.frequence_cell || 'N/A'}`
             }));
 
-            // Add to existing cell towers (markers)
             setCellTowers(prev => [...prev, ...areaMarkers]);
 
             showToast(`Showing ${cells.length} cells in ${backendArea}`, "success");
-
-            // Optional: Zoom closer to see cells clearly
-            // setZoom(14); // Uncomment if you have setZoom state in Home.jsx
           }
         } else {
           showToast("Failed to fetch cells for this area", "error");
         }
 
-        const coverageRes = await fetch('http://localhost:8081/api/v1/coverage/penetration', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('accessToken')}`
-        },
-        body: JSON.stringify({
-          area: backendArea,
-          radiusMeters: Number(range) 
-        })
-      });
+        // === NEW LOGIC: Only call penetration if range exists and is > 0 ===
+        const numericRange = Number(range);
+        if (!isNaN(numericRange) && numericRange > 0) {
+          const coverageRes = await fetch('http://localhost:8081/api/v1/coverage/penetration', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${localStorage.getItem('accessToken')}`
+            },
+            body: JSON.stringify({
+              area: backendArea,
+              radiusMeters: numericRange
+            })
+          });
 
-      if (coverageRes.ok) {
-        const coverage = await coverageRes.json();
-        showToast(
-          coverage.message,
-          coverage.classification === "High" ? "success" :
-          coverage.classification === "Medium" ? "info" : "warning"
-        );
+          if (coverageRes.ok) {
+            const coverage = await coverageRes.json();
 
-        // Draw coverage polygons (circles per cell)
-        if (coverage.coveragePolygonsGeoJson && coverage.coveragePolygonsGeoJson.length > 0) {
-          const polygonMarkers = coverage.coveragePolygonsGeoJson.map((geoJson, i) => ({
-            id: `coverage-poly-${i}-${Date.now()}`,
-            geoJson: JSON.parse(geoJson),
-            style: { color: 'blue', fillColor: 'blue', fillOpacity: 0.2 }
-          }));
+            showToast(
+              coverage.message,
+              coverage.classification === "High" ? "success" :
+              coverage.classification === "Medium" ? "info" : "warning"
+            );
 
-          setPolygons(prev => [...prev, ...polygonMarkers]); // New state for polygons
+            // Draw polygons
+            if (coverage.coveragePolygonsGeoJson?.length > 0) {
+              const polygonMarkers = coverage.coveragePolygonsGeoJson.map((geoJson, i) => ({
+                id: `coverage-poly-${i}-${Date.now()}`,
+                geoJson: JSON.parse(geoJson),
+                style: { color: 'blue', fillColor: 'blue', fillOpacity: 0.2 }
+              }));
+              setPolygons(prev => [...prev, ...polygonMarkers]);
+            }
+
+            // Show penetration result in modal
+            setPenetrationResult(coverage);
+          } else {
+            showToast("Failed to calculate coverage penetration", "error");
+          }
         }
-      } else {
-        showToast("Failed to calculate coverage penetration", "error");
-      }
 
       } else {
         showToast("Location not found. Try again.", "warning");
       }
     } catch (err) {
-      console.error("Error fetching location or coverage:", err);
+      console.error("Error fetching location or cells:", err);
       showToast("Error fetching data. Check connection.", "error");
     }
   };
@@ -249,15 +252,16 @@ const Home = () => {
           accuracy={accuracy}
           providerUsed={providerUsed}
           cellTowers={cellTowers}
-          // cityMarker={cityMarker}
           range={range} 
           polygons={polygons}
         />
+
         <SearchForm 
           onSearch={handleSearch} 
           onCitySearch={handleCitySearch}
           onRangeChange={setRange} 
-          />
+        />
+
         <ResponseForm
           latitude={latitude}
           longitude={longitude}
@@ -267,6 +271,30 @@ const Home = () => {
           addressDetail={addressDetail}
         />
       </div>
+
+      {penetrationResult && (
+        <div className="penetration-modal" onClick={() => setPenetrationResult(null)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()}>
+            <button 
+              className="close-btn" 
+              onClick={() => setPenetrationResult(null)}
+            >
+              ×
+            </button>
+            <h3>Penetration Rate Result</h3>
+            <div className="result-grid">
+              <div><strong>Area:</strong> {penetrationResult.area || 'N/A'}</div>
+              <div><strong>Radius:</strong> {penetrationResult.radiusMeters} m</div>
+              <div><strong>Penetration Rate:</strong> {penetrationResult.penetrationRate?.toFixed(2)}%</div>
+              <div><strong>Classification:</strong> {penetrationResult.classification}</div>
+              <div><strong>Covered Area:</strong> {penetrationResult.coveredAreaKm2?.toFixed(2)} km²</div>
+              <div><strong>Total Area:</strong> {penetrationResult.totalAreaKm2?.toFixed(2)} km²</div>
+              <div className="full-width"><strong>Message:</strong> {penetrationResult.message}</div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <About />
       <Footer />
     </div>

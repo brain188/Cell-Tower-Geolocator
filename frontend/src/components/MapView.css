@@ -80,3 +80,24 @@
   transform: scale(1.1);
   transition: all 0.2s;
 }
+
+/* Technology icons */
+.tech-icon {
+  width: 30px !important;
+  height: 30px !important;
+  border-radius: 50% !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 18px !important;
+  font-weight: bold !important;
+  color: white !important;
+  box-shadow: 0 0 0 4px rgba(0,0,0,0.3) !important;
+  text-align: center !important;
+  line-height: 40px !important;
+  background: none !important;
+}
+
+.tech-icon.gsm { background: #ff4444 !important;} /* Red for GSM */
+.tech-icon.umts { background: #33cc33 !important; } /* Green for UMTS */
+.tech-icon.lte { background: #3366ff !important;}  /* Blue for LTE */

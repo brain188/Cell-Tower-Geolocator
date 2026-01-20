@@ -33,6 +33,40 @@ const orangeIcon = L.icon({
   shadowSize: [41, 41],
 });
 
+// Normalize technology
+const normalizeTech = (tech) => {
+  if (!tech) return 'U';
+
+  const t = tech.toUpperCase();
+  if (t.includes('GSM') || t === '2G') return 'G';
+  if (t.includes('UMTS') || t === '3G') return 'U';
+  if (t.includes('LTE') || t === '4G') return 'L';
+
+  return 'U';
+};
+
+// Technology icons with letter in center
+const techIcons = {
+  G: L.divIcon({
+    className: '',
+    html: '<div class="tech-icon gsm">G</div>',
+    iconSize: [40, 40],
+    iconAnchor: [20, 20],
+  }),
+  U: L.divIcon({
+    className: '',
+    html: '<div class="tech-icon umts">U</div>',
+    iconSize: [40, 40],
+    iconAnchor: [20, 20],
+  }),
+  L: L.divIcon({
+    className: '',
+    html: '<div class="tech-icon lte">L</div>',
+    iconSize: [40, 40],
+    iconAnchor: [20, 20],
+  }),
+};
+
 const MapView = ({ latitude, longitude, accuracy, providerUsed, cellTowers, cityMarker, polygons = [] }) => {
   const position = latitude && longitude ? [latitude, longitude] : [4.0511, 9.7679];
   const mapKey = latitude && longitude ? `${latitude}-${longitude}` : `default-${Date.now()}`;
@@ -86,7 +120,7 @@ const MapView = ({ latitude, longitude, accuracy, providerUsed, cellTowers, city
 
           <Marker
             position={chosen.position}
-            icon={blueIcon}
+            icon={techIcons[normalizeTech(chosen.technoCell)] || blueIcon}
             eventHandlers={{
               click: () => {
                 if (accuracy) {
@@ -100,7 +134,7 @@ const MapView = ({ latitude, longitude, accuracy, providerUsed, cellTowers, city
           >
             <Popup className="cell-popup">
               <div className="popup-card">
-                <div className="popup-title">📡 Requested Cell</div>
+                <div className="popup-title">📡 Requested Cell ({chosen.technoCell})</div>
 
                 <div className="popup-row">
                   <b>Original Requested:</b> {chosen.originalRequestedCellId || chosen.cellId}
@@ -121,6 +155,7 @@ const MapView = ({ latitude, longitude, accuracy, providerUsed, cellTowers, city
                 <div className="popup-row"><b>MCC:</b> {chosen.mcc}</div>
                 <div className="popup-row"><b>MNC:</b> {chosen.mnc}</div>
                 <div className="popup-row"><b>LAC:</b> {chosen.lac}</div>
+                <div className="popup-row"><b>Frequency:</b> {chosen.frequenceCell || 'N/A'}</div>
                 <div className="popup-row"><b>Provider:</b> {providerUsed || 'Unknown'}</div>
               </div>
             </Popup>
@@ -153,7 +188,7 @@ const MapView = ({ latitude, longitude, accuracy, providerUsed, cellTowers, city
             <Marker
               key={tower.id}
               position={tower.position}
-              icon={orangeIcon}
+              icon={techIcons[normalizeTech(tower.technoCell)] || orangeIcon}
               eventHandlers={{
                 click: () => {
                   // ONLY draw circle if user entered a range
@@ -168,10 +203,11 @@ const MapView = ({ latitude, longitude, accuracy, providerUsed, cellTowers, city
             >
             <Popup className="cell-popup">
               <div className="popup-card">
-                <div className="popup-title">📡 Related Cell</div>
+                <div className="popup-title">📡 Related Cell ({tower.technoCell})</div>
 
                 <div className="popup-row"><b>LAC:</b> {tower.lac}</div>
                 <div className="popup-row"><b>Cell ID:</b> {tower.cellId}</div>
+                <div className="popup-row"><b>Frequency:</b> {tower.frequenceCell || 'N/A'}</div>
                 <div className="popup-row"><b>BTS:</b> {tower.btsId ?? "N/A"}</div>
                 <div className="popup-row"><b>Provider:</b> {tower.provider}</div>
               </div>

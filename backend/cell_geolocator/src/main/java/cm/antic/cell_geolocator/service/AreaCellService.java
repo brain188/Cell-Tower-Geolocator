@@ -26,7 +26,8 @@ public class AreaCellService {
 
         StringBuilder sqlBuilder = new StringBuilder("""
             SELECT ci, lac, latitude, longitude, nomdusite AS site_name, "Id BTS New" AS bts_id,
-                   localité, quartier, "Region Terr", "Region Bus", département
+                   localité, quartier, "Region Terr", "Region Bus", département,
+                   "Techno Cell" AS techno_cell, "Fréquence Cell" AS frequence_cell
             FROM orange_cameroon
             WHERE 
         """);

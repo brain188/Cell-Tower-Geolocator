@@ -31,6 +31,13 @@ public class GeolocationResponse {
     @Schema(description = "Indicates if a fallback method was used for resolution", example = "false")
     private Boolean fallbackUsed;
 
+    @Schema(description = "The technology that was used for resolution", example = "LTE")
+    private String technoCell;
+
+    @Schema(description = "The frequency that was used for resolution", example = "2100")
+    private String frequenceCell;
+
+
     @Schema(description = "Address of the resolved location", example = "1 Infinite Loop, Cupertino, CA 95014, USA")
     private String address;
 

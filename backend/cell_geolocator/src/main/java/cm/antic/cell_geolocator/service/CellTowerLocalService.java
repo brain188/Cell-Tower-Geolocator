@@ -25,7 +25,9 @@ public class CellTowerLocalService {
 
     public List<Map<String, Object>> findCellsByBtsId(String cellId) {
         String sql = """
-            SELECT c2.lac, c2.ci, c2."Id BTS New", c2.latitude, c2.longitude
+            SELECT c2.lac, c2.ci, c2."Id BTS New", c2.latitude, c2.longitude,
+                    c2."Techno Cell" AS techno_cell,
+                    c2."Fréquence Cell" AS frequence_cell
             FROM orange_cameroon c1
             JOIN orange_cameroon c2 ON c1."Id BTS New" = c2."Id BTS New"
             WHERE c1.ci = ?
@@ -43,6 +45,8 @@ public class CellTowerLocalService {
                            longitude,
                            nomdusite AS operator_name,
                            "Id BTS New",
+                           "Techno Cell" AS techno_cell,
+                           "Fréquence Cell" AS frequence_cell,
                            ci
                     FROM orange_cameroon
                     WHERE lac = ?
@@ -58,6 +62,8 @@ public class CellTowerLocalService {
                 resp.setCellId(cellId);                   // actual used
                 resp.setOriginalRequestedCellId(cellId);  // requested
                 resp.setFallbackUsed(false);              // no fallback
+                resp.setTechnoCell((String) row.get("techno_cell"));
+                resp.setFrequenceCell((String) row.get("frequence_cell"));
                 addAddressAsync(resp);
                 System.out.println("LOCAL DB HIT (exact)");
                 return resp;
@@ -71,6 +77,8 @@ public class CellTowerLocalService {
                            nomdusite AS operator_name,
                            "Id BTS New",
                            ABS(CAST(ci AS INTEGER) - ?) AS distance
+                           "Techno Cell" AS techno_cell,
+                           "Fréquence Cell" AS frequence_cell
                     FROM orange_cameroon
                     WHERE lac = ?
                     ORDER BY distance ASC
@@ -86,6 +94,8 @@ public class CellTowerLocalService {
                 resp.setCellId(usedCellId);                   // actual used
                 resp.setOriginalRequestedCellId(cellId);      // requested
                 resp.setFallbackUsed(true);                   // fallback used!
+                resp.setTechnoCell((String) row.get("techno_cell"));
+                resp.setFrequenceCell((String) row.get("frequence_cell"));
                 addAddressAsync(resp);
                 System.out.println("LOCAL DB HIT (fallback: " + usedCellId + ")");
                 return resp;
