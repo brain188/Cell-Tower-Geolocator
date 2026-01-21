@@ -28,10 +28,10 @@ const Signup = () => {
     if (!validate()) return;
 
     try {
-      const response = await fetch('http://localhost:8081/api/v1/auth/signup', {
-      // const apiBase = import.meta.env.VITE_API_BASE;
+      // const response = await fetch('http://localhost:8081/api/v1/auth/signup', {
+      const apiBase = import.meta.env.VITE_API_BASE;
 
-      // const response = await fetch(`${apiBase}/api/v1/auth/signup`, {
+      const response = await fetch(`${apiBase}/api/v1/auth/signup`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),

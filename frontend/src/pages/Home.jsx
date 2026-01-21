@@ -32,8 +32,10 @@ const Home = () => {
     setRange(request.range ?? null);
 
     try {
-      const apiBase = "http://127.0.0.1:8081";
+      const apiBase = import.meta.env.VITE_API_BASE;
       const response = await fetch(`${apiBase}/api/v1/geolocate/priority`, {
+      // const apiBase = "http://127.0.0.1:8081";
+      // const response = await fetch(`${apiBase}/api/v1/geolocate/priority`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -160,8 +162,10 @@ const Home = () => {
         setAddress(displayName);
         setAddressDetail(result.address || null);
 
-        const cellsResponse = await fetch(
-          `http://localhost:8081/api/v1/cells/by-area?query=${encodeURIComponent(backendArea)}`,
+        const apiBase = import.meta.env.VITE_API_BASE;
+        const cellsResponse = await fetch(`${apiBase}/api/v1/cells/by-area?query=${encodeURIComponent(backendArea)}`,
+        // const cellsResponse = await fetch(
+        //   `http://localhost:8081/api/v1/cells/by-area?query=${encodeURIComponent(backendArea)}`,
           {
             method: 'GET',
             headers: {
@@ -195,7 +199,9 @@ const Home = () => {
         // Only call penetration if range exists and is > 0 
         const numericRange = Number(range);
         if (!isNaN(numericRange) && numericRange > 0) {
-          const coverageRes = await fetch('http://localhost:8081/api/v1/coverage/penetration', {
+
+          const coverageRes = await fetch(`${apiBase}/api/v1/coverage/penetration`, {
+          // const coverageRes = await fetch('http://localhost:8081/api/v1/coverage/penetration', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
