@@ -52,18 +52,24 @@ const techIcons = {
     html: '<div class="tech-icon gsm">G</div>',
     iconSize: [40, 40],
     iconAnchor: [20, 20],
+    popupAnchor: [0, -20],
+    interactive: true,
   }),
   U: L.divIcon({
     className: '',
     html: '<div class="tech-icon umts">U</div>',
     iconSize: [40, 40],
     iconAnchor: [20, 20],
+    popupAnchor: [0, -20],
+    interactive: true,
   }),
   L: L.divIcon({
     className: '',
     html: '<div class="tech-icon lte">L</div>',
     iconSize: [40, 40],
     iconAnchor: [20, 20],
+    popupAnchor: [0, -20],
+    interactive: true,
   }),
 };
 
@@ -122,19 +128,20 @@ const MapView = ({ latitude, longitude, accuracy, providerUsed, cellTowers, city
             position={chosen.position}
             icon={techIcons[normalizeTech(chosen.technoCell)] || blueIcon}
             eventHandlers={{
-              click: () => {
+              click: (e) => {
                 if (accuracy) {
                   setActiveCircle({
                     center: chosen.position,
-                    radius: accuracy,
+                    radius: Number(chosen.range) || accuracy,
                   });
                 }
+                e.target.openPopup();
               },
             }}
           >
             <Popup className="cell-popup">
               <div className="popup-card">
-                <div className="popup-title">📡 Requested Cell ({chosen.technoCell})</div>
+                <div className="popup-title">Requested Cell ({chosen.technoCell})</div>
 
                 <div className="popup-row">
                   <b>Original Requested:</b> {chosen.originalRequestedCellId || chosen.cellId}
@@ -203,7 +210,7 @@ const MapView = ({ latitude, longitude, accuracy, providerUsed, cellTowers, city
             >
             <Popup className="cell-popup">
               <div className="popup-card">
-                <div className="popup-title">📡 Related Cell ({tower.technoCell})</div>
+                <div className="popup-title">Related Cell ({tower.technoCell})</div>
 
                 <div className="popup-row"><b>LAC:</b> {tower.lac}</div>
                 <div className="popup-row"><b>Cell ID:</b> {tower.cellId}</div>
@@ -238,7 +245,7 @@ const MapView = ({ latitude, longitude, accuracy, providerUsed, cellTowers, city
         <Circle
           key={poly.id}
           center={poly.center || [0, 0]} // Fallback if no center
-          radius={poly.range}   // Use radius from prop
+          radius={poly.range}   
           pathOptions={{
             color: 'blue',
             fillColor: 'blue',

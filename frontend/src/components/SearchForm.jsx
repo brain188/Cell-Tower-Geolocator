@@ -35,7 +35,7 @@ const SearchForm = ({ onSearch, onCitySearch, onRangeChange }) => {
         const response = await fetch(url);
         const data = await response.json();
         setSuggestions(data);
-        setShowDropdown(true);
+        setShowDropdown(false);
       } catch (err) {
         console.error('Autocomplete error:', err);
       }

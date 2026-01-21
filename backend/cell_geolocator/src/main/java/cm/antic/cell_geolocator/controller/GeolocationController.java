@@ -51,7 +51,6 @@ public class GeolocationController {
     @Autowired
     private CoverageService coverageService;
 
-
     // PRIORITY-FIRST FASTEST RESULT FROM PROVIDERS
     @Operation(
         summary = "Resolve geolocation (async priority-first)",

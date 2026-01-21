@@ -96,6 +96,7 @@
   text-align: center !important;
   line-height: 40px !important;
   background: none !important;
+  pointer-events: none;
 }
 
 .tech-icon.gsm { background: #ff4444 !important;} /* Red for GSM */

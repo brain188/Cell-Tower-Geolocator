@@ -5,6 +5,8 @@ import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -13,6 +15,8 @@ import org.springframework.security.core.Authentication;
 
 import cm.antic.cell_geolocator.entity.User;
 import cm.antic.cell_geolocator.entity.RequestLog;
+import cm.antic.cell_geolocator.exception.AccountNotVerifiedException;
+import cm.antic.cell_geolocator.exception.UnauthenticatedException;
 import cm.antic.cell_geolocator.model.GeolocationRequest;
 import cm.antic.cell_geolocator.model.GeolocationResponse;
 import cm.antic.cell_geolocator.repository.RequestLogRepository;
@@ -22,6 +26,8 @@ import io.github.resilience4j.retry.annotation.Retry;
 
 @Service
 public class GeolocationService {
+
+    private static final Logger log = LoggerFactory.getLogger(GeolocationService.class);
 
     @Autowired
     private PriorityService priorityService;
@@ -44,17 +50,29 @@ public class GeolocationService {
 
     private void requireVerification() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+
         if (auth == null || !auth.isAuthenticated()) {
-            throw new RuntimeException("Not authenticated");
+            log.warn("Unauthenticated access attempt to geolocation service");
+            throw new UnauthenticatedException("Not authenticated");
         }
 
         String username = auth.getName();
+        log.debug("Verifying account for user '{}'", username);
+
         User user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+            .orElseThrow(() -> {
+                log.error("Authenticated user '{}' not found in database", username);
+                return new UnauthenticatedException("User not found");
+            });
 
         if (!user.isVerified()) {
-            throw new RuntimeException("Account Not Verified - Please Complete Company Verification");
+            log.warn("Unverified account '{}' attempted geolocation access", username);
+            throw new AccountNotVerifiedException(
+                "Account not verified - please complete company verification"
+            );
         }
+
+        log.debug("User '{}' successfully verified", username);
     }
 
     /**
@@ -66,21 +84,36 @@ public class GeolocationService {
     )
     @Retry(name = "providerRetry")
     public CompletableFuture<GeolocationResponse> resolveAsync(GeolocationRequest request) {
+
+        log.info(
+            "Starting async geolocation resolve [MCC={}, MNC={}, LAC={}, CELL={}]",
+            request.getMcc(), request.getMnc(), request.getLac(), request.getCellId()
+        );
+
         requireVerification();
 
         List<String> priorities = priorityService.getProviderPriorities();
+        log.debug("Provider priority order: {}", priorities);
 
         List<CompletableFuture<ProviderResult>> futures = priorities.stream()
             .map(provider -> {
                 ProviderClient client = getClientByName(provider);
                 if (client == null) {
+                    log.warn("Provider '{}' not found in configured clients", provider);
                     return CompletableFuture.completedFuture(
                         new ProviderResult(provider, null, "Provider not found")
                     );
                 }
+
                 return client.resolveAsync(request)
-                        .thenApply(resp -> new ProviderResult(provider, resp, null))
-                        .exceptionally(e -> new ProviderResult(provider, null, e.getMessage()));
+                    .thenApply(resp -> {
+                        log.debug("Provider '{}' returned response", provider);
+                        return new ProviderResult(provider, resp, null);
+                    })
+                    .exceptionally(e -> {
+                        log.error("Provider '{}' failed: {}", provider, e.getMessage());
+                        return new ProviderResult(provider, null, e.getMessage());
+                    });
             })
             .collect(Collectors.toList());
 
@@ -108,11 +141,17 @@ public class GeolocationService {
                 finalResponse.setRawResponses(raw);
 
                 if (finalResponse.getLatitude() != null) {
+                    try {
                     reverseGeocodeService.addAddressToResponseAsync(finalResponse)
-                        .exceptionally(ex -> null);
+                        .get(); // BLOCKS until address is set
+                    } catch (Exception e) {
+                            log.warn("Reverse geocoding failed", e);
+                            // return null;
+                    }
                 }
 
                 saveLogAsync(request, finalResponse);
+                log.info("Geolocation resolve completed successfully");
                 return finalResponse;
             });
     }
@@ -126,7 +165,7 @@ public class GeolocationService {
         try {
             return resolveAsync(request).join();
         } catch (Exception e) {
-            System.err.println("Sync resolve failed: " + e.getMessage());
+            log.error("Synchronous geolocation resolve failed", e);
             return null;
         }
     }
@@ -142,23 +181,30 @@ public class GeolocationService {
 
     private ProviderClient getClientByName(String name) {
         return providerClients.stream()
-                .filter(c -> c.getProviderName().equals(name))
-                .findFirst().orElse(null);
+            .filter(c -> c.getProviderName().equals(name))
+            .findFirst().orElse(null);
     }
 
     private void saveLogAsync(GeolocationRequest request, GeolocationResponse resp) {
         CompletableFuture.runAsync(() -> {
-            RequestLog log = new RequestLog();
-            log.setMcc(request.getMcc());
-            log.setMnc(request.getMnc());
-            log.setLac(request.getLac());
-            log.setCellId(request.getCellId());
-            log.setAccuracy(resp.getAccuracy());
-            log.setProviderUsed(resp.getProviderUsed());
-            log.setLatitude(resp.getLatitude());
-            log.setLongitude(resp.getLongitude());
-            log.setTimestamp(LocalDateTime.now());
-            requestLogRepository.save(log);
+            try {
+                RequestLog logEntry = new RequestLog();
+                logEntry.setMcc(request.getMcc());
+                logEntry.setMnc(request.getMnc());
+                logEntry.setLac(request.getLac());
+                logEntry.setCellId(request.getCellId());
+                logEntry.setAccuracy(resp.getAccuracy());
+                logEntry.setProviderUsed(resp.getProviderUsed());
+                logEntry.setLatitude(resp.getLatitude());
+                logEntry.setLongitude(resp.getLongitude());
+                logEntry.setTimestamp(LocalDateTime.now());
+
+                requestLogRepository.save(logEntry);
+                log.debug("Request log saved successfully");
+
+            } catch (Exception e) {
+                log.error("Failed to persist request log", e);
+            }
         });
     }
 }

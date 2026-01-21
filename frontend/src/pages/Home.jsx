@@ -60,6 +60,7 @@ const Home = () => {
       if (lat === null || lon === null) {
         throw new Error("Invalid geolocation data from server");
       }
+    
 
       setLatitude(lat);
       setLongitude(lon);
@@ -149,7 +150,7 @@ const Home = () => {
         const lat = parseFloat(result.lat);
         const lon = parseFloat(result.lon);
         const displayName = result.display_name || name;
-        const backendArea = name; // short name for backend
+        const backendArea = name; 
 
         // Set map center
         setLatitude(lat);
@@ -159,7 +160,6 @@ const Home = () => {
         setAddress(displayName);
         setAddressDetail(result.address || null);
 
-        // === ALWAYS fetch cells (regardless of range) ===
         const cellsResponse = await fetch(
           `http://localhost:8081/api/v1/cells/by-area?query=${encodeURIComponent(backendArea)}`,
           {
@@ -192,7 +192,7 @@ const Home = () => {
           showToast("Failed to fetch cells for this area", "error");
         }
 
-        // === NEW LOGIC: Only call penetration if range exists and is > 0 ===
+        // Only call penetration if range exists and is > 0 
         const numericRange = Number(range);
         if (!isNaN(numericRange) && numericRange > 0) {
           const coverageRes = await fetch('http://localhost:8081/api/v1/coverage/penetration', {

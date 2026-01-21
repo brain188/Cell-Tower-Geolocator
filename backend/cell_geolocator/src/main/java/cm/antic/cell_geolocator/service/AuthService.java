@@ -53,7 +53,7 @@ public class AuthService {
         String accessToken = generateAccessToken(username);
         String refreshToken = generateRefreshToken(username);
 
-        // Store hashed refresh token in DB
+        // Store refresh token in DB
         user.setRefreshToken(refreshToken);
         userRepository.save(user);
 
