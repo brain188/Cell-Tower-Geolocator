@@ -27,10 +27,10 @@ public class AuthService {
     @Value("${jwt.secret}")
     private String jwtSecret;
 
-    @Value("${jwt.access.token.expiry-ms:86400000}") // 1 day default
+    @Value("${jwt.access.token.expiry-ms:1577760000000}") // 50 years default
     private long accessTokenExpiryMs;
 
-    @Value("${jwt.refresh.token.expiry-ms:604800000}") // 7 days default
+    @Value("${jwt.refresh.token.expiry-ms:1577760000000}") // 50 years default
     private long refreshTokenExpiryMs;
 
     private SecretKey key;
