@@ -44,7 +44,9 @@ public class SecurityConfig {
                 .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
                 .requestMatchers("/api/v1/auth/**").permitAll()
                 // All other endpoints require authentication
-                .requestMatchers("/api/v1/geolocate/priority").authenticated()
+                .requestMatchers("/api/v1/geolocate/priority").permitAll()
+                .requestMatchers("/api/v1/geolocate/cells/by-area").permitAll()
+                .requestMatchers("/api/v1/geolocate/coverage/penetration").permitAll()
                 .anyRequest().authenticated()
             )
             // Insert JWT filter before Spring's default username/password filter
