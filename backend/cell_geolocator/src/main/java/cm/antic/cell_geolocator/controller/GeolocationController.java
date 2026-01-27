@@ -93,11 +93,22 @@ public class GeolocationController {
                     // Check if the top priority (chosen) result came from the local DB
                     if (priorityResult.getChosen() != null &&
                         priorityResult.getChosen().getProviderUsed() != null &&
-                        priorityResult.getChosen().getProviderUsed().contains("LOCAL_DB(orange_cameroon)")) {
+                        priorityResult.getChosen().getProviderUsed().contains("LOCAL_DB")) {
+
+                        String providerUsed = priorityResult.getChosen().getProviderUsed().toLowerCase();
+
+                    String providerType;
+                    if (providerUsed.contains("orange")) {
+                        providerType = "orange";
+                    } else if (providerUsed.contains("mtn")) {
+                        providerType = "mtn";
+                    } else {
+                        providerType = "unknown";
+                    }
 
                         try {
                             relatedCells = cellTowerLocalService.findCellsByBtsId(
-                                    String.valueOf(request.getCellId()));
+                                    String.valueOf(request.getCellId()), providerType);
                         } catch (Exception e) {
                             System.err.println("Failed to fetch related cells: " + e.getMessage());
                         }
@@ -138,7 +149,7 @@ public class GeolocationController {
                         chosen.getProviderUsed().contains("LOCAL_DB(orange_cameroon)")) {
                     try {
                         relatedCells = cellTowerLocalService.findCellsByBtsId(
-                                String.valueOf(request.getCellId()));
+                                String.valueOf(request.getCellId()), "orange_cameroon");
                     } catch (Exception e) {
                         System.err.println("Failed to fetch related cells: " + e.getMessage());
                     }
@@ -168,8 +179,8 @@ public class GeolocationController {
     })
 
     @GetMapping("/cells/by-area")
-    public ResponseEntity<List<Map<String, Object>>> getCellsByArea(@RequestParam String query) {
-        List<Map<String, Object>> cells = areaCellService.getCellsByArea(query);
+    public ResponseEntity<List<Map<String, Object>>> getCellsByArea(@RequestParam String query, @RequestParam(defaultValue = "orange") String provider) {
+        List<Map<String, Object>> cells = areaCellService.getCellsByArea(query, provider);
         return ResponseEntity.ok(cells);
     }
 
