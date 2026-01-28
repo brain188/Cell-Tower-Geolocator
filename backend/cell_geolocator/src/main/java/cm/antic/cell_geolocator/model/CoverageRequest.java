@@ -7,4 +7,5 @@ public class CoverageRequest {
 
     private String area;
     private double radiusMeters;
+    private String provider;
 }

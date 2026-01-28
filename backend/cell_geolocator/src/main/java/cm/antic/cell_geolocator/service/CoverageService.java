@@ -11,7 +11,6 @@ import org.springframework.web.client.RestTemplate;
 
 import java.util.List;
 import java.util.Map;
-
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 
@@ -28,30 +27,37 @@ public class CoverageService {
         this.restTemplate = restTemplate;
     }
 
-    public CoverageResponse calculateCoverage(String area, double radiusMeters) {
+    // MAIN ENTRY 
 
-        log.info("Starting coverage calculation | area='{}', radius={}m", area, radiusMeters);
+    public CoverageResponse calculateCoverage(String area, double radiusMeters, String provider) {
+
+        if (provider == null || provider.isBlank()) {
+            provider = "orange";
+        }
+
+        log.info(
+            "Starting coverage calculation | area='{}', radius={}m, provider='{}'",
+            area, radiusMeters, provider
+        );
 
         CoverageResponse response = new CoverageResponse();
 
         try {
             // Get region polygon
-            log.debug("Fetching region polygon for '{}'", area);
             String regionGeoJson = getRegionPolygonFromNominatim(area);
-
             if (regionGeoJson == null) {
-                log.warn("No polygon found for area '{}'", area);
                 response.setMessage("Region not found");
                 return response;
             }
 
             // Fetch cells
-            log.debug("Fetching cells in area '{}'", area);
-            List<Map<String, Object>> cells = getCellsInArea(area);
-            log.info("Found {} cells in area '{}'", cells.size(), area);
+            List<Map<String, Object>> cells = getCellsInArea(area, provider);
+            log.info(
+                "Cells fetched | area='{}', provider='{}', count={}",
+                area, provider, cells.size()
+            );
 
             // Total region area
-            log.debug("Computing total region area");
             Double totalAreaM2 = jdbcTemplate.queryForObject(
                 "SELECT ST_Area(ST_GeomFromGeoJSON(?)::geography)",
                 Double.class,
@@ -59,17 +65,111 @@ public class CoverageService {
             );
 
             if (totalAreaM2 == null || totalAreaM2 <= 0) {
-                log.warn("Invalid total area computed for '{}'", area);
                 response.setMessage("Invalid region geometry");
                 return response;
             }
 
-            log.info("Total area for '{}' = {} km²", area, totalAreaM2 / 1_000_000);
+            // Covered area
+            Double coveredAreaM2 = calculateCoveredArea(
+                area, radiusMeters, provider, regionGeoJson
+            );
 
-            // Covered area using PostGIS 
-            log.debug("Computing covered area using PostGIS buffers");
+            if (coveredAreaM2 == null) {
+                coveredAreaM2 = 0.0;
+            }
 
-            String sql = """
+            // Penetration
+            double penetration = (coveredAreaM2 / totalAreaM2) * 100.0;
+
+            String classification =
+                penetration < 50 ? "Low" :
+                penetration < 80 ? "Medium" : "High";
+
+            log.info(
+                "Coverage result | area='{}', provider='{}', penetration={}%, classification={}",
+                area,
+                provider,
+                String.format("%.2f", penetration),
+                classification
+            );
+
+            // Response
+            response.setTotalAreaKm2(totalAreaM2 / 1_000_000);
+            response.setCoveredAreaKm2(coveredAreaM2 / 1_000_000);
+            response.setPenetrationRate(penetration);
+            response.setClassification(classification);
+            response.setMessage(
+                String.format(
+                    "Coverage of %s (%s) with %.0fm radius: %.1f%% (%s)",
+                    area, provider, radiusMeters, penetration, classification
+                )
+            );
+
+            return response;
+
+        } catch (Exception e) {
+            log.error(
+                "Coverage calculation failed | area='{}', provider='{}'",
+                area, provider, e
+            );
+            response.setMessage("Internal error while calculating coverage");
+            return response;
+        }
+    }
+
+    // COVERED AREA
+
+    private Double calculateCoveredArea(
+        String area,
+        double radiusMeters,
+        String provider,
+        String regionGeoJson
+    ) {
+
+        String term = "%" + area + "%";
+
+        String sql;
+
+        if ("mtn".equalsIgnoreCase(provider)) {
+
+            sql = """
+                WITH cell_buffers AS (
+                    SELECT
+                        ST_Buffer(
+                            ST_SetSRID(ST_Point(longitude, latitude), 4326)::geography,
+                            ?
+                        )::geometry AS buffer
+                    FROM mtn_cameroon
+                    WHERE
+                        LOWER(localité) LIKE LOWER(?)
+                        OR LOWER(département) LIKE LOWER(?)
+                        OR LOWER("Region Terr") LIKE LOWER(?)
+                ),
+                unioned AS (
+                    SELECT ST_Union(buffer) AS coverage_geom
+                    FROM cell_buffers
+                )
+                SELECT ST_Area(
+                    ST_Intersection(
+                        unioned.coverage_geom,
+                        ST_GeomFromGeoJSON(?)
+                    )::geography
+                )
+                FROM unioned
+            """;
+
+            return jdbcTemplate.queryForObject(
+                sql,
+                Double.class,
+                radiusMeters,
+                term, term, term,
+                regionGeoJson
+            );
+
+        } else {
+            // DEFAULT → ORANGE
+
+            sql = """
                 WITH cell_buffers AS (
                     SELECT
                         ST_Buffer(geom::geography, ?)::geometry AS buffer
@@ -94,117 +194,80 @@ public class CoverageService {
                 FROM unioned
             """;
 
-            String term = "%" + area + "%";
-
-            Double coveredAreaM2 = jdbcTemplate.queryForObject(
+            return jdbcTemplate.queryForObject(
                 sql,
                 Double.class,
                 radiusMeters,
                 term, term, term, term, term,
                 regionGeoJson
             );
-
-            if (coveredAreaM2 == null) {
-                log.warn("Covered area returned NULL for '{}', defaulting to 0", area);
-                coveredAreaM2 = 0.0;
-            }
-
-            log.info("Covered area for '{}' = {} km²", area, coveredAreaM2 / 1_000_000);
-
-            // Penetration rate
-            double penetration = (coveredAreaM2 / totalAreaM2) * 100.0;
-
-            // Classification
-            String classification =
-                penetration < 50 ? "Low" :
-                penetration < 80 ? "Medium" : "High";
-
-            log.info(
-                "Coverage result | area='{}', penetration={}%, classification={}",
-                area,
-                String.format("%.2f", penetration),
-                classification
-            );
-
-            // Response
-            response.setTotalAreaKm2(totalAreaM2 / 1_000_000);
-            response.setCoveredAreaKm2(coveredAreaM2 / 1_000_000);
-            response.setPenetrationRate(penetration);
-            response.setClassification(classification);
-            response.setMessage(
-                String.format(
-                    "Coverage of %s with %.0fm radius: %.1f%% (%s)",
-                    area, radiusMeters, penetration, classification
-                )
-            );
-
-            log.info("Coverage calculation completed successfully for '{}'", area);
-            return response;
-
-        } catch (Exception e) {
-            log.error("Coverage calculation failed for '{}'", area, e);
-            response.setMessage("Internal error while calculating coverage");
-            return response;
         }
     }
 
-    // Nominatim polygon fetch
+    // CELL FETCH
+
+    private List<Map<String, Object>> getCellsInArea(String area, String provider) {
+
+        String term = "%" + area + "%";
+
+        if ("mtn".equalsIgnoreCase(provider)) {
+
+            String sql = """
+                SELECT latitude, longitude
+                FROM mtn_cameroon
+                WHERE
+                    LOWER(localité) LIKE LOWER(?)
+                    OR LOWER(département) LIKE LOWER(?)
+                    OR LOWER("Region Terr") LIKE LOWER(?)
+            """;
+
+            return jdbcTemplate.queryForList(sql, term, term, term);
+
+        } else {
+            // ORANGE 
+
+            String sql = """
+                SELECT latitude, longitude, geom
+                FROM orange_cameroon
+                WHERE
+                    LOWER(localité) LIKE LOWER(?)
+                    OR LOWER(quartier) LIKE LOWER(?)
+                    OR LOWER(département) LIKE LOWER(?)
+                    OR LOWER("Region Terr") LIKE LOWER(?)
+                    OR LOWER("Region Bus") LIKE LOWER(?)
+            """;
+
+            return jdbcTemplate.queryForList(
+                sql, term, term, term, term, term
+            );
+        }
+    }
+
+    //NOMINATIM
+
     private String getRegionPolygonFromNominatim(String areaName) {
         try {
-            log.debug("Calling Nominatim API for '{}'", areaName);
-
             String url =
                 "https://nominatim.openstreetmap.org/search?q=" +
                 URLEncoder.encode(areaName, StandardCharsets.UTF_8) +
                 "&format=geojson&polygon_geojson=1&limit=1";
 
             String body = restTemplate.getForObject(url, String.class);
-
-            if (body == null || body.isBlank()) {
-                log.warn("Empty response from Nominatim for '{}'", areaName);
-                return null;
-            }
+            if (body == null || body.isBlank()) return null;
 
             ObjectMapper mapper = new ObjectMapper();
             JsonNode root = mapper.readTree(body);
             JsonNode features = root.path("features");
 
-            if (!features.isArray() || features.isEmpty()) {
-                log.warn("No features returned for area '{}'", areaName);
-                return null;
-            }
+            if (!features.isArray() || features.isEmpty()) return null;
 
-            log.info("Successfully extracted geometry for '{}'", areaName);
             return mapper.writeValueAsString(
                 features.get(0).path("geometry")
             );
 
         } catch (Exception e) {
-            log.error("Failed to fetch geometry for area '{}'", areaName, e);
+            log.error("Failed to fetch geometry for '{}'", areaName, e);
             return null;
         }
-    }
-    // Database cell fetch
-    private List<Map<String, Object>> getCellsInArea(String area) {
-        log.debug("Querying database for cells in '{}'", area);
-
-        String sql = """
-            SELECT latitude, longitude, geom
-            FROM orange_cameroon
-            WHERE
-                LOWER(localité) LIKE LOWER(?)
-                OR LOWER(quartier) LIKE LOWER(?)
-                OR LOWER(département) LIKE LOWER(?)
-                OR LOWER("Region Terr") LIKE LOWER(?)
-                OR LOWER("Region Bus") LIKE LOWER(?)
-        """;
-
-        String term = "%" + area + "%";
-
-        List<Map<String, Object>> results =
-            jdbcTemplate.queryForList(sql, term, term, term, term, term);
-
-        log.debug("Database returned {} cell records for '{}'", results.size(), area);
-        return results;
     }
 }

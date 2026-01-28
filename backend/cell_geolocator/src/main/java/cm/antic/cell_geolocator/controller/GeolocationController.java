@@ -197,7 +197,7 @@ public class GeolocationController {
     
     @PostMapping("/coverage/penetration")
     public ResponseEntity<CoverageResponse> calculateCoverage(@RequestBody CoverageRequest request) {
-        CoverageResponse resp = coverageService.calculateCoverage(request.getArea(), request.getRadiusMeters());
+        CoverageResponse resp = coverageService.calculateCoverage(request.getArea(), request.getRadiusMeters(), request.getProvider());
         return ResponseEntity.ok(resp);
     }
 
