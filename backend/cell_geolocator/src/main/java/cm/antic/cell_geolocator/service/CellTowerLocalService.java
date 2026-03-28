@@ -62,6 +62,10 @@ public class CellTowerLocalService {
                 SELECT latitude,
                        longitude,
                        nomdusite AS operator_name,
+                       localité,
+                       quartier,
+                       "Region Terr",
+                       département,
                        "Id BTS New",
                        "Techno Cell" AS techno_cell,
                        "Fréquence Cell" AS frequence_cell,
@@ -88,6 +92,9 @@ public class CellTowerLocalService {
                     SELECT latitude,
                            longitude,
                            operator_site AS operator_name,
+                           localité,
+                           département,
+                           "Region Terr",
                            ci,
                            NULL AS techno_cell,
                            NULL AS frequence_cell
@@ -115,6 +122,10 @@ public class CellTowerLocalService {
                        latitude,
                        longitude,
                        nomdusite AS operator_name,
+                       localité,
+                       quartier,
+                       "Region Terr",
+                       département,
                        "Id BTS New",
                        ABS(CAST(ci AS INTEGER) - ?) AS distance,
                        "Techno Cell" AS techno_cell,
@@ -144,6 +155,9 @@ public class CellTowerLocalService {
                            latitude,
                            longitude,
                            operator_site AS operator_name,
+                           localité,
+                           département,
+                           "Region Terr",
                            ABS(CAST(ci AS INTEGER) - ?) AS distance,
                            NULL AS techno_cell,
                            NULL AS frequence_cell
@@ -175,27 +189,80 @@ public class CellTowerLocalService {
         return null;
     }
     private GeolocationResponse buildResponse(Map<String, Object> row, String provider) {
+
         Object latObj = row.get("latitude");
         Object lonObj = row.get("longitude");
+
         if (latObj == null || lonObj == null) {
             log.warn("Latitude or Longitude is null for DB row: {}", row);
             return null;
         }
+
         GeolocationResponse resp = new GeolocationResponse();
+
         resp.setLatitude(Double.parseDouble(latObj.toString()));
         resp.setLongitude(Double.parseDouble(lonObj.toString()));
+
         resp.setProviderUsed("LOCAL_DB_" + provider.toUpperCase() + ": " + row.get("operator_name"));
+
         resp.setTechnoCell((String) row.get("techno_cell"));
         resp.setFrequenceCell((String) row.get("frequence_cell"));
+
+        // ✅ NEW: Address from DB
+        String address = buildAddressFromDb(row, provider);
+        String street = (String) row.get("operator_name");
+
+        resp.setAddress(address);
+        resp.setStreet(street);
+
+        // ✅ FLAG to skip reverse geocoding
+        resp.setFromLocalDb(true);
+
         return resp;
     }
+
+    private String buildAddressFromDb(Map<String, Object> row, String provider) {
+
+        if ("orange".equals(provider)) {
+            return String.join(", ",
+                safe(row.get("quartier")),
+                safe(row.get("localité")),
+                safe(row.get("département")),
+                safe(row.get("Region Terr"))
+            );
+        }
+
+        if ("mtn".equals(provider)) {
+            return String.join(", ",
+                safe(row.get("localité")),
+                safe(row.get("département")),
+                safe(row.get("Region Terr"))
+            );
+        }
+
+        return null;
+        
+    }
+
+    private String safe(Object val) {
+        return val != null ? val.toString() : "";
+    }
+
     private void addAddressAsync(GeolocationResponse resp) {
+
+        // ✅ SKIP if data is from local DB
+        if (Boolean.TRUE.equals(resp.getFromLocalDb())) {
+            log.info("Skipping reverse geocoding (local DB already provides address)");
+            return;
+        }
+
         try {
             reverseGeocodeService
                 .addAddressToResponseAsync(resp)
-                .get(); // BLOCKS until address is set
+                .get();
         } catch (Exception e) {
-            log.warn("Reverse geocoding failed, returning response without address", e);
+            log.warn("Reverse geocoding failed", e);
         }
     }
+
 }
