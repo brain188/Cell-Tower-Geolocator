@@ -140,8 +140,7 @@ public class GeolocationService {
 
                 finalResponse.setRawResponses(raw);
 
-                if (finalResponse.getLatitude() != null &&
-                    !Boolean.TRUE.equals(finalResponse.getFromLocalDb())) {
+                if (finalResponse.getLatitude() != null) {
                     try {
                     reverseGeocodeService.addAddressToResponseAsync(finalResponse)
                         .get(); // BLOCKS until address is set

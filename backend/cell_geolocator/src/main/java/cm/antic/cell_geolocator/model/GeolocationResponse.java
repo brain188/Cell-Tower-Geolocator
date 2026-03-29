@@ -47,10 +47,6 @@ public class GeolocationResponse {
     private String error;
 
     private Map<String, Object> rawResponses = new HashMap<>();
-
-    private String street;
-    private Boolean fromLocalDb;
-
     @Data
     public static class AddressDetail {
         private String country;
