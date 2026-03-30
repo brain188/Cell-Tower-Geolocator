@@ -41,7 +41,22 @@ public class ReverseGeocodeService {
                     .thenAccept(data -> {
                         try {
                             if (data != null && data.containsKey("display_name")) {
-                                response.setAddress(data.get("display_name").toString());
+                                String apiAddress = data.get("display_name").toString();
+
+                                // Extract site name from providerUsed
+                                String providerUsed = response.getProviderUsed();
+                                String siteName = null;
+
+                                if (providerUsed != null && providerUsed.contains(":")) {
+                                    siteName = providerUsed.split(":", 2)[1].trim();
+                                }
+
+                                if (siteName != null && !siteName.isBlank()) {
+                                    response.setAddress(siteName + ", " + apiAddress);
+                                    System.out.println("Final address with siteName: " + response.getAddress());
+                                } else {
+                                    response.setAddress(apiAddress);
+                                }
 
                                 Object addrObj = data.get("address");
                                 if (addrObj instanceof Map) {
@@ -58,6 +73,12 @@ public class ReverseGeocodeService {
                                             addressMap.getOrDefault("state_district", ""))).toString());
                                     detail.setPostalCode(addressMap.getOrDefault("postcode", "").toString());
                                     detail.setStreet(addressMap.getOrDefault("road", "").toString());
+
+                                    // ✅ Add streetName (site name from DB via providerUsed)
+                                    if (providerUsed != null && providerUsed.contains(":")) {
+                                        detail.setStreetName(siteName);
+                                        System.out.println("streetName set: " + siteName);
+                                    }
 
                                     response.setAddressDetail(detail);
                                 }
@@ -95,7 +116,22 @@ public class ReverseGeocodeService {
                 .thenAccept(data -> {
                     if (data != null && data.getAddress() != null) {
                         Map<String, String> addressMap = data.getAddress();
-                        response.setAddress(data.getDisplayName());
+                        String apiAddress = data.getDisplayName();
+
+                        // Extract site name
+                        String providerUsed = response.getProviderUsed();
+                        String siteName = null;
+
+                        if (providerUsed != null && providerUsed.contains(":")) {
+                            siteName = providerUsed.split(":", 2)[1].trim();
+                        }
+
+                        if (siteName != null && !siteName.isBlank()) {
+                            response.setAddress(siteName + ", " + apiAddress);
+                            System.out.println("Final address with siteName: " + response.getAddress());
+                        } else {
+                            response.setAddress(apiAddress);
+                        }
 
                         AddressDetail detail = new AddressDetail();
                         detail.setCountry(addressMap.getOrDefault("country", ""));
@@ -112,6 +148,12 @@ public class ReverseGeocodeService {
                         );
                         detail.setPostalCode(addressMap.getOrDefault("postcode", ""));
                         detail.setStreet(addressMap.getOrDefault("road", ""));
+
+                        // ✅ Add streetName
+                        if (providerUsed != null && providerUsed.contains(":")) {
+                            detail.setStreetName(siteName);
+                            System.out.println("streetName set: " + siteName);
+                        }
 
                         response.setAddressDetail(detail);
                     }
