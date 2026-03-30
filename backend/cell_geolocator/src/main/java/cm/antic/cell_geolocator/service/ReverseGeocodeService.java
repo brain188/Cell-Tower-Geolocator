@@ -41,9 +41,15 @@ public class ReverseGeocodeService {
                     .thenAccept(data -> {
                         try {
                             if (data != null && data.containsKey("display_name")) {
+
                                 String apiAddress = data.get("display_name").toString();
 
-                                // Extract site name from providerUsed
+                                // ✅ REMOVE FIRST SEGMENT (e.g. "Cuba room bar")
+                                if (apiAddress.contains(",")) {
+                                    apiAddress = apiAddress.substring(apiAddress.indexOf(",") + 1).trim();
+                                }
+
+                                // Extract site name
                                 String providerUsed = response.getProviderUsed();
                                 String siteName = null;
 
@@ -72,18 +78,18 @@ public class ReverseGeocodeService {
                                             addressMap.getOrDefault("region",
                                             addressMap.getOrDefault("state_district", ""))).toString());
                                     detail.setPostalCode(addressMap.getOrDefault("postcode", "").toString());
-                                    detail.setStreet(addressMap.getOrDefault("road", "").toString());
 
-                                    // ✅ Add streetName (site name from DB via providerUsed)
-                                    if (providerUsed != null && providerUsed.contains(":")) {
-                                        detail.setStreetName(siteName);
-                                        System.out.println("streetName set: " + siteName);
+                                    // ✅ ONLY CHANGE: override street if LOCAL_DB
+                                    if (providerUsed != null && providerUsed.startsWith("LOCAL_DB") && siteName != null && !siteName.isBlank()) {
+                                        detail.setStreet(siteName);
+                                        System.out.println("Street set from DB: " + siteName);
+                                    } else {
+                                        detail.setStreet(addressMap.getOrDefault("road", "").toString());
                                     }
 
                                     response.setAddressDetail(detail);
                                 }
                             } else {
-                                // Fallback to Nominatim if LocationIQ gives no valid response
                                 fetchFromNominatim(response);
                             }
                         } catch (Exception ex) {
@@ -98,7 +104,6 @@ public class ReverseGeocodeService {
                     });
         }
 
-        // Fallback directly to Nominatim if no API key configured
         return fetchFromNominatim(response);
     }
 
@@ -116,9 +121,14 @@ public class ReverseGeocodeService {
                 .thenAccept(data -> {
                     if (data != null && data.getAddress() != null) {
                         Map<String, String> addressMap = data.getAddress();
+
                         String apiAddress = data.getDisplayName();
 
-                        // Extract site name
+                        // ✅ REMOVE FIRST SEGMENT
+                        if (apiAddress != null && apiAddress.contains(",")) {
+                            apiAddress = apiAddress.substring(apiAddress.indexOf(",") + 1).trim();
+                        }
+
                         String providerUsed = response.getProviderUsed();
                         String siteName = null;
 
@@ -147,12 +157,13 @@ public class ReverseGeocodeService {
                                 addressMap.getOrDefault("state_district", "")))
                         );
                         detail.setPostalCode(addressMap.getOrDefault("postcode", ""));
-                        detail.setStreet(addressMap.getOrDefault("road", ""));
 
-                        // ✅ Add streetName
-                        if (providerUsed != null && providerUsed.contains(":")) {
-                            detail.setStreetName(siteName);
-                            System.out.println("streetName set: " + siteName);
+                        // ✅ ONLY CHANGE: override street if LOCAL_DB
+                        if (providerUsed != null && providerUsed.startsWith("LOCAL_DB") && siteName != null && !siteName.isBlank()) {
+                            detail.setStreet(siteName);
+                            System.out.println("Street set from DB: " + siteName);
+                        } else {
+                            detail.setStreet(addressMap.getOrDefault("road", ""));
                         }
 
                         response.setAddressDetail(detail);

@@ -55,7 +55,6 @@ public class GeolocationResponse {
         private String cityOrTown;
         private String postalCode;
         private String street;
-        private String streetName;
     }
 
     public void setError(String error) {
