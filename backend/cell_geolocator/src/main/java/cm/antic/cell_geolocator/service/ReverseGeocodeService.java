@@ -26,7 +26,6 @@ public class ReverseGeocodeService {
             return CompletableFuture.completedFuture(null);
         }
 
-        // Try LocationIQ first if API key is available
         if (locationIqApiKey != null && !locationIqApiKey.isBlank()) {
             String locationIqUrl = String.format(
                     "https://us1.locationiq.com/v1/reverse?key=%s&lat=%s&lon=%s&format=json&addressdetails=1",
@@ -40,16 +39,10 @@ public class ReverseGeocodeService {
                     .toFuture()
                     .thenAccept(data -> {
                         try {
-                            if (data != null && data.containsKey("display_name")) {
+                            if (data != null && data.containsKey("address")) {
 
-                                String apiAddress = data.get("display_name").toString();
+                                Map<String, Object> addressMap = (Map<String, Object>) data.get("address");
 
-                                // ✅ REMOVE FIRST SEGMENT (e.g. "Cuba room bar")
-                                if (apiAddress.contains(",")) {
-                                    apiAddress = apiAddress.substring(apiAddress.indexOf(",") + 1).trim();
-                                }
-
-                                // Extract site name
                                 String providerUsed = response.getProviderUsed();
                                 String siteName = null;
 
@@ -57,38 +50,49 @@ public class ReverseGeocodeService {
                                     siteName = providerUsed.split(":", 2)[1].trim();
                                 }
 
-                                if (siteName != null && !siteName.isBlank()) {
-                                    response.setAddress(siteName + ", " + apiAddress);
-                                    System.out.println("Final address with siteName: " + response.getAddress());
+                                // ✅ Extract only required fields
+                                String country = addressMap.getOrDefault("country", "").toString();
+                                String city = addressMap.getOrDefault("city",
+                                        addressMap.getOrDefault("town",
+                                        addressMap.getOrDefault("village", ""))).toString();
+                                String state = addressMap.getOrDefault("state",
+                                        addressMap.getOrDefault("region",
+                                        addressMap.getOrDefault("state_district", ""))).toString();
+
+                                // ✅ Build CLEAN address (NO street, NO POI)
+                                StringBuilder cleanAddress = new StringBuilder();
+
+                                if (providerUsed != null && providerUsed.startsWith("LOCAL_DB") &&
+                                        siteName != null && !siteName.isBlank()) {
+                                    cleanAddress.append(siteName).append(", ");
+                                }
+
+                                cleanAddress
+                                        .append(city).append(", ")
+                                        .append(state).append(", ")
+                                        .append(country);
+
+                                response.setAddress(cleanAddress.toString());
+                                System.out.println("Clean address: " + response.getAddress());
+
+                                // ✅ AddressDetail (same logic)
+                                AddressDetail detail = new AddressDetail();
+                                detail.setCountry(country);
+                                detail.setCountryCode(addressMap.getOrDefault("country_code", "").toString());
+                                detail.setCityOrTown(city);
+                                detail.setStateOrRegion(state);
+                                detail.setPostalCode(addressMap.getOrDefault("postcode", "").toString());
+
+                                // ✅ Street rule
+                                if (providerUsed != null && providerUsed.startsWith("LOCAL_DB") &&
+                                        siteName != null && !siteName.isBlank()) {
+                                    detail.setStreet(siteName);
                                 } else {
-                                    response.setAddress(apiAddress);
+                                    detail.setStreet("");
                                 }
 
-                                Object addrObj = data.get("address");
-                                if (addrObj instanceof Map) {
-                                    Map<String, Object> addressMap = (Map<String, Object>) addrObj;
-                                    AddressDetail detail = new AddressDetail();
+                                response.setAddressDetail(detail);
 
-                                    detail.setCountry(addressMap.getOrDefault("country", "").toString());
-                                    detail.setCountryCode(addressMap.getOrDefault("country_code", "").toString());
-                                    detail.setCityOrTown(addressMap.getOrDefault("city",
-                                            addressMap.getOrDefault("town",
-                                            addressMap.getOrDefault("village", ""))).toString());
-                                    detail.setStateOrRegion(addressMap.getOrDefault("state",
-                                            addressMap.getOrDefault("region",
-                                            addressMap.getOrDefault("state_district", ""))).toString());
-                                    detail.setPostalCode(addressMap.getOrDefault("postcode", "").toString());
-
-                                    // ✅ ONLY CHANGE: override street if LOCAL_DB
-                                    if (providerUsed != null && providerUsed.startsWith("LOCAL_DB") && siteName != null && !siteName.isBlank()) {
-                                        detail.setStreet(siteName);
-                                        System.out.println("Street set from DB: " + siteName);
-                                    } else {
-                                        detail.setStreet(addressMap.getOrDefault("road", "").toString());
-                                    }
-
-                                    response.setAddressDetail(detail);
-                                }
                             } else {
                                 fetchFromNominatim(response);
                             }
@@ -120,14 +124,8 @@ public class ReverseGeocodeService {
                 .toFuture()
                 .thenAccept(data -> {
                     if (data != null && data.getAddress() != null) {
+
                         Map<String, String> addressMap = data.getAddress();
-
-                        String apiAddress = data.getDisplayName();
-
-                        // ✅ REMOVE FIRST SEGMENT
-                        if (apiAddress != null && apiAddress.contains(",")) {
-                            apiAddress = apiAddress.substring(apiAddress.indexOf(",") + 1).trim();
-                        }
 
                         String providerUsed = response.getProviderUsed();
                         String siteName = null;
@@ -136,34 +134,43 @@ public class ReverseGeocodeService {
                             siteName = providerUsed.split(":", 2)[1].trim();
                         }
 
-                        if (siteName != null && !siteName.isBlank()) {
-                            response.setAddress(siteName + ", " + apiAddress);
-                            System.out.println("Final address with siteName: " + response.getAddress());
-                        } else {
-                            response.setAddress(apiAddress);
+                        String country = addressMap.getOrDefault("country", "");
+                        String city = addressMap.getOrDefault("city",
+                                addressMap.getOrDefault("town",
+                                addressMap.getOrDefault("village", "")));
+                        String state = addressMap.getOrDefault("state",
+                                addressMap.getOrDefault("region",
+                                addressMap.getOrDefault("state_district", "")));
+
+                        // ✅ Build CLEAN address
+                        StringBuilder cleanAddress = new StringBuilder();
+
+                        if (providerUsed != null && providerUsed.startsWith("LOCAL_DB") &&
+                                siteName != null && !siteName.isBlank()) {
+                            cleanAddress.append(siteName).append(", ");
                         }
 
+                        cleanAddress
+                                .append(city).append(", ")
+                                .append(state).append(", ")
+                                .append(country);
+
+                        response.setAddress(cleanAddress.toString());
+                        System.out.println("Clean address: " + response.getAddress());
+
                         AddressDetail detail = new AddressDetail();
-                        detail.setCountry(addressMap.getOrDefault("country", ""));
+                        detail.setCountry(country);
                         detail.setCountryCode(addressMap.getOrDefault("country_code", ""));
-                        detail.setCityOrTown(
-                                addressMap.getOrDefault("city",
-                                addressMap.getOrDefault("town",
-                                addressMap.getOrDefault("village", "")))
-                        );
-                        detail.setStateOrRegion(
-                                addressMap.getOrDefault("state",
-                                addressMap.getOrDefault("region",
-                                addressMap.getOrDefault("state_district", "")))
-                        );
+                        detail.setCityOrTown(city);
+                        detail.setStateOrRegion(state);
                         detail.setPostalCode(addressMap.getOrDefault("postcode", ""));
 
-                        // ✅ ONLY CHANGE: override street if LOCAL_DB
-                        if (providerUsed != null && providerUsed.startsWith("LOCAL_DB") && siteName != null && !siteName.isBlank()) {
+                        // ✅ Street rule
+                        if (providerUsed != null && providerUsed.startsWith("LOCAL_DB") &&
+                                siteName != null && !siteName.isBlank()) {
                             detail.setStreet(siteName);
-                            System.out.println("Street set from DB: " + siteName);
                         } else {
-                            detail.setStreet(addressMap.getOrDefault("road", ""));
+                            detail.setStreet("");
                         }
 
                         response.setAddressDetail(detail);
