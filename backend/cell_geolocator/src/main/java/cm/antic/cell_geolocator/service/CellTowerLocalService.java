@@ -39,7 +39,9 @@ public class CellTowerLocalService {
                 return jdbcTemplate.queryForList(sql, cellId, cellId);
             } else if ("mtn".equals(provider)) {
                 String sql = """
-                    SELECT DISTINCT ON (c2.lac, c2.ci) c2.lac, c2.ci, c2.latitude, c2.longitude
+                    SELECT DISTINCT ON (c2.lac, c2.ci) c2.lac, c2.ci, c2.latitude, c2.longitude,
+                           c2.technology AS techno_cell,
+                           c2.frequency_band AS frequence_cell
                     FROM mtn_cameroon c1
                     JOIN mtn_cameroon c2 ON c1.lac = c2.lac
                     WHERE c1.ci = CAST(? AS BIGINT)
@@ -87,10 +89,10 @@ public class CellTowerLocalService {
             String mtnSql = """
                     SELECT latitude,
                            longitude,
-                           operator_site AS operator_name,
+                           site_name AS operator_name,
                            ci,
-                           NULL AS techno_cell,
-                           NULL AS frequence_cell
+                           technology AS techno_cell,
+                           frequency_band AS frequence_cell
                     FROM mtn_cameroon
                     WHERE lac = CAST(? AS BIGINT)
                         AND ci  = CAST(? AS BIGINT)
@@ -143,10 +145,10 @@ public class CellTowerLocalService {
                     SELECT ci,
                            latitude,
                            longitude,
-                           operator_site AS operator_name,
+                           site_name AS operator_name,
                            ABS(CAST(ci AS INTEGER) - ?) AS distance,
-                           NULL AS techno_cell,
-                           NULL AS frequence_cell
+                           technology AS techno_cell,
+                           frequency_band AS frequence_cell
                     FROM mtn_cameroon
                     WHERE lac = CAST(? AS BIGINT)
                     ORDER BY distance ASC
