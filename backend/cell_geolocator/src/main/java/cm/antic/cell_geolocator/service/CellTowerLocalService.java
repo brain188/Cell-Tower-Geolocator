@@ -59,7 +59,7 @@ public class CellTowerLocalService {
 
     public GeolocationResponse findLocalTower(String mcc, String mnc, String lac, String cellId) {
         try {
-            // Exact match for orange_cameroon
+            // ORANGE EXACT
             String orangeSql = """
                 SELECT latitude,
                        longitude,
@@ -73,45 +73,64 @@ public class CellTowerLocalService {
                   AND ci = ?
                 LIMIT 1
             """;
+
             List<Map<String, Object>> exactResults =
                     jdbcTemplate.queryForList(orangeSql, lac, cellId);
+
             if (!exactResults.isEmpty()) {
                 GeolocationResponse resp = buildResponse(exactResults.get(0), "orange");
                 if (resp == null) return null;
+
                 resp.setCellId(cellId);
                 resp.setOriginalRequestedCellId(cellId);
                 resp.setFallbackUsed(false);
+
                 addAddressAsync(resp);
+
                 log.info("LOCAL DB HIT (orange_exact) for cellId={}", cellId);
                 return resp;
             }
-            // If not in orange, try EXACT match in mtn_cameroon
+
+            // MTN EXACT (UPDATED)
             String mtnSql = """
-                    SELECT latitude,
-                           longitude,
-                           site_name AS operator_name,
-                           ci,
-                           technology AS techno_cell,
-                           frequency_band AS frequence_cell
-                    FROM mtn_cameroon
-                    WHERE lac = CAST(? AS BIGINT)
-                        AND ci  = CAST(? AS BIGINT)
-                    LIMIT 1
-                    """;
-            List<Map<String, Object>> mtnResults = jdbcTemplate.queryForList(mtnSql, lac, cellId);
+                SELECT latitude,
+                       longitude,
+                       site_name AS operator_name,
+                       ci,
+                       technology AS techno_cell,
+                       frequency_band AS frequence_cell,
+                       site_name,
+                       arrondissement,
+                       departement,
+                       region
+                FROM mtn_cameroon
+                WHERE lac = CAST(? AS BIGINT)
+                  AND ci  = CAST(? AS BIGINT)
+                LIMIT 1
+            """;
+
+            List<Map<String, Object>> mtnResults =
+                    jdbcTemplate.queryForList(mtnSql, lac, cellId);
+
             if (!mtnResults.isEmpty()) {
                 Map<String, Object> row = mtnResults.get(0);
+
                 GeolocationResponse resp = buildResponse(row, "mtn");
+
                 resp.setCellId(cellId);
                 resp.setOriginalRequestedCellId(cellId);
                 resp.setFallbackUsed(false);
                 resp.setTechnoCell((String) row.get("techno_cell"));
                 resp.setFrequenceCell((String) row.get("frequence_cell"));
-                addAddressAsync(resp);
+
+                // USE LOCAL ADDRESS (NO API)
+                buildMtnAddress(resp, row);
+
                 log.info("LOCAL DB HIT (mtn_exact) for cellId=" + cellId);
                 return resp;
             }
-            // Fallback: closest CI in same LAC for orange_cameroon
+
+            // ORANGE FALLBACK
             String fallbackSql = """
                 SELECT ci,
                        latitude,
@@ -126,76 +145,131 @@ public class CellTowerLocalService {
                 ORDER BY distance ASC
                 LIMIT 1
             """;
+
             List<Map<String, Object>> fallbackResults =
                     jdbcTemplate.queryForList(fallbackSql, Integer.parseInt(cellId), lac);
+
             if (!fallbackResults.isEmpty()) {
                 Map<String, Object> row = fallbackResults.get(0);
+
                 GeolocationResponse resp = buildResponse(row, "orange");
                 if (resp == null) return null;
+
                 String usedCellId = row.get("ci").toString();
+
                 resp.setCellId(usedCellId);
                 resp.setOriginalRequestedCellId(cellId);
                 resp.setFallbackUsed(true);
+
                 addAddressAsync(resp);
+
                 log.info("LOCAL DB HIT (orange_fallback) requested={}, used={}", cellId, usedCellId);
                 return resp;
             }
-            // Fallback: closest CI in same LAC for mtn_cameroon
+
+            // MTN FALLBACK (UPDATED)
             String mtnFallbackSql = """
-                    SELECT ci,
-                           latitude,
-                           longitude,
-                           site_name AS operator_name,
-                           ABS(CAST(ci AS INTEGER) - ?) AS distance,
-                           technology AS techno_cell,
-                           frequency_band AS frequence_cell
-                    FROM mtn_cameroon
-                    WHERE lac = CAST(? AS BIGINT)
-                    ORDER BY distance ASC
-                    LIMIT 1
-                    """;
-            List<Map<String, Object>> mtnFallbackResults = jdbcTemplate.queryForList(mtnFallbackSql, Integer.parseInt(cellId), lac);
+                SELECT ci,
+                       latitude,
+                       longitude,
+                       site_name AS operator_name,
+                       ABS(CAST(ci AS INTEGER) - ?) AS distance,
+                       technology AS techno_cell,
+                       frequency_band AS frequence_cell,
+                       site_name,
+                       arrondissement,
+                       departement,
+                       region
+                FROM mtn_cameroon
+                WHERE lac = CAST(? AS BIGINT)
+                ORDER BY distance ASC
+                LIMIT 1
+            """;
+
+            List<Map<String, Object>> mtnFallbackResults =
+                    jdbcTemplate.queryForList(mtnFallbackSql, Integer.parseInt(cellId), lac);
+
             if (!mtnFallbackResults.isEmpty()) {
                 Map<String, Object> row = mtnFallbackResults.get(0);
+
                 GeolocationResponse resp = buildResponse(row, "mtn");
+
                 String usedCellId = row.get("ci").toString();
+
                 resp.setCellId(usedCellId);
                 resp.setOriginalRequestedCellId(cellId);
                 resp.setFallbackUsed(true);
                 resp.setTechnoCell((String) row.get("techno_cell"));
                 resp.setFrequenceCell((String) row.get("frequence_cell"));
-                addAddressAsync(resp);
+
+                // USE LOCAL ADDRESS
+                buildMtnAddress(resp, row);
+
                 log.info("LOCAL DB HIT (mtn_fallback) requested={}, used={}", cellId, usedCellId);
                 return resp;
             }
+
             return null;
+
         } catch (DataAccessException e) {
             log.error("Local DB lookup failed", e);
         } catch (NumberFormatException e) {
             log.warn("Invalid Cell ID format: {}", cellId);
         }
+
         return null;
     }
+
     private GeolocationResponse buildResponse(Map<String, Object> row, String provider) {
         Object latObj = row.get("latitude");
         Object lonObj = row.get("longitude");
+
         if (latObj == null || lonObj == null) {
             log.warn("Latitude or Longitude is null for DB row: {}", row);
             return null;
         }
+
         GeolocationResponse resp = new GeolocationResponse();
         resp.setLatitude(Double.parseDouble(latObj.toString()));
         resp.setLongitude(Double.parseDouble(lonObj.toString()));
         resp.setProviderUsed("LOCAL_DB_" + provider.toUpperCase() + ": " + row.get("operator_name"));
         resp.setTechnoCell((String) row.get("techno_cell"));
         resp.setFrequenceCell((String) row.get("frequence_cell"));
+
         return resp;
     }
+
+    // NEW METHOD (MTN ADDRESS BUILDER)
+    private void buildMtnAddress(GeolocationResponse resp, Map<String, Object> row) {
+        try {
+            String siteName = row.get("site_name") != null ? row.get("site_name").toString() : "";
+            String arrondissement = row.get("arrondissement") != null ? row.get("arrondissement").toString() : "";
+            String departement = row.get("departement") != null ? row.get("departement").toString() : "";
+            String region = row.get("region") != null ? row.get("region").toString() : "";
+
+            String address = siteName + ", " + arrondissement + ", " + region + ", Cameroon";
+            resp.setAddress(address);
+
+            GeolocationResponse.AddressDetail detail = new GeolocationResponse.AddressDetail();
+            detail.setCountry("Cameroon");
+            detail.setCountryCode("cm");
+            detail.setStateOrRegion(region);
+            detail.setCityOrTown(departement + ", " + arrondissement);
+            detail.setPostalCode("");
+            detail.setStreet(siteName);
+
+            resp.setAddressDetail(detail);
+
+        } catch (Exception e) {
+            log.warn("Failed to build MTN address", e);
+        }
+    }
+
     private void addAddressAsync(GeolocationResponse resp) {
         try {
             reverseGeocodeService
                 .addAddressToResponseAsync(resp)
-                .get(); // BLOCKS until address is set
+                .get();
         } catch (Exception e) {
             log.warn("Reverse geocoding failed, returning response without address", e);
         }
