@@ -102,7 +102,8 @@ public class CellTowerLocalService {
                        site_name,
                        arrondissement,
                        departement,
-                       region
+                       region,
+                       azimuth
                 FROM mtn_cameroon
                 WHERE lac = CAST(? AS BIGINT)
                   AND ci  = CAST(? AS BIGINT)
@@ -118,7 +119,9 @@ public class CellTowerLocalService {
                 GeolocationResponse resp = buildResponse(row, "mtn");
 
                 resp.setCellId(cellId);
-                resp.setOriginalRequestedCellId(cellId);
+                resp.setOriginalRequestedCellId(
+                    row.get("azimuth") != null ? row.get("azimuth").toString() : cellId
+                );
                 resp.setFallbackUsed(false);
                 resp.setTechnoCell((String) row.get("techno_cell"));
                 resp.setFrequenceCell((String) row.get("frequence_cell"));
@@ -179,7 +182,8 @@ public class CellTowerLocalService {
                        site_name,
                        arrondissement,
                        departement,
-                       region
+                       region,
+                       azimuth
                 FROM mtn_cameroon
                 WHERE lac = CAST(? AS BIGINT)
                 ORDER BY distance ASC
@@ -197,7 +201,9 @@ public class CellTowerLocalService {
                 String usedCellId = row.get("ci").toString();
 
                 resp.setCellId(usedCellId);
-                resp.setOriginalRequestedCellId(cellId);
+                resp.setOriginalRequestedCellId(
+                    row.get("azimuth") != null ? row.get("azimuth").toString() : cellId
+                );
                 resp.setFallbackUsed(true);
                 resp.setTechnoCell((String) row.get("techno_cell"));
                 resp.setFrequenceCell((String) row.get("frequence_cell"));
